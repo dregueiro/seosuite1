@@ -1,0 +1,12 @@
+# .gitignore
+venv/
+*.pyc
+__pycache__/
+db.sqlite3
+.env
+.vscode/
+media/
+static/
+# Credenciales de Google (¡MUY IMPORTANTE!)
+*.json
+!credentials_example.json
