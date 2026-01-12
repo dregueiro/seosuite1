@@ -1,0 +1,53 @@
+
+<!DOCTYPE html>
+{% include 'includes/head.html' %}
+    <!-- body start -->
+    <body data-menu-color="light" data-sidebar="default">
+
+        <!-- Begin page -->
+        <div id="app-layout">
+        {% include 'includes/topbar.html' %}
+
+        {% include 'includes/sidebar.html' %}
+
+
+
+
+            <!-- ============================================================== -->
+            <!-- Start Page Content here -->
+            <!-- ============================================================== -->
+         
+            <div class="content-page">
+                <div class="content">
+
+                    <!-- Start Content-->
+                    <div class="container-fluid">
+
+                        {% block content %}{% endblock %}
+                        
+
+
+                         
+                        
+                    </div> <!-- container-fluid -->
+
+                </div> <!-- content -->
+
+                {% include 'includes/footer.html' %}
+
+
+            </div>
+            <!-- ============================================================== -->
+            <!-- End Page content -->
+            <!-- ============================================================== -->
+
+
+        </div>
+        <!-- END wrapper -->
+
+        {% includes 'includes/vendor.html' %}
+
+        <!-- App js-->
+         <script src="vendor/hando/js/app.js"></script>
+    </body>
+</html>
