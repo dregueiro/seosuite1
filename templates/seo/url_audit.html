@@ -1,0 +1,111 @@
+{% extends 'layouts/base.html' %}
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center mb-4">
+                        <h4 class="header-title">Auditoría de Indexación: {{ project.name }}</h4>
+                        <form method="POST">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-success">
+                                <i data-feather="refresh-cw" class="icon-xs me-1"></i> Escanear Sitemap
+                            </button>
+                            <a href="{% url 'seo:bulk_inspect' project.pk %}" 
+                                onclick="iniciarInspeccionMasiva(event, this.href)"
+                                class="btn btn-primary shadow-sm">
+                                <i data-feather="zoom-in" class="icon-xs me-1"></i> Inspección Masiva (API)
+                            </a>
+                        </form>
+                    </div>
+                    <table class="table table-centered table-nowrap mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Página (URL)</th>
+                                <th>Estado en Google</th>
+                                <th>Último Rastreo</th>
+                                <th>Acción</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for audit in audits %}
+                            <tr>
+                                <td>
+                                    <a href="{{ audit.url }}" target="_blank" class="text-body fw-bold">{{ audit.url }}</a>
+                                </td>
+                                <td>
+                                    {% if audit.status == 'Submitted and indexed' %}
+                                        <span class="badge bg-soft-success text-success fs-12">Indexada</span>
+                                    {% elif audit.status == 'Solicitud de Indexación Enviada' %}
+                                        <span class="badge bg-soft-info text-info fs-12">Solicitada ⚡</span>
+                                    {% elif audit.status == 'URL is unknown to Google' %}
+                                        <span class="badge bg-soft-warning text-warning fs-12">No Descubierta</span>
+                                    {% else %}
+                                        <span class="badge bg-soft-danger text-danger fs-12">{{ audit.verdict|default:"Pendiente" }}</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <small class="text-muted">{{ audit.status|default:"Pendiente de inspección" }}</small>
+                                </td>
+                                <td>
+                                    <a href="{% url 'seo:inspect_url' project.pk audit.id %}" class="btn btn-sm btn-light">
+                                        <i data-feather="search" class="icon-xs"></i>
+                                    </a>
+                                    {% if audit.status != 'Submitted and indexed' %}
+                                        <a href="{% url 'seo:request_indexing' project.pk audit.id %}" 
+                                        class="btn btn-sm btn-soft-warning" 
+                                        title="Forzar Indexación">
+                                            <i data-feather="zap" class="icon-xs text-warning"></i>
+                                        </a>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="4" class="text-center">No hay URLs auditadas. ¡Empecemos ahora!</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+    {% block scripts %}
+    <script>
+        // Usamos una función para envolver todo y asegurar que SweetAlert esté cargado
+        function iniciarInspeccionMasiva(e, url) {
+            e.preventDefault();
+            
+            Swal.fire({
+                title: 'Inspeccionando URLs...',
+                html: `
+                    <div class="mt-3">
+                        <p>Estamos consultando la API de Google Search Console.</p>
+                        <p class="text-muted small">Esto puede tardar unos minutos dependiendo de la cantidad de páginas.</p>
+                    </div>
+                `,
+                allowOutsideClick: false,
+                allowEscapeKey: false,
+                showConfirmButton: false,
+                didOpen: () => {
+                    Swal.showLoading();
+                }
+            });
+
+            // Redirigir después de mostrar el popup
+            window.location.href = url;
+        }
+
+        // Esperar a que el DOM esté listo
+        document.addEventListener('DOMContentLoaded', function() {
+            // Inicializar iconos de nuevo por si acaso
+            if (typeof feather !== 'undefined') {
+                feather.replace();
+            }
+        });
+    </script>
+    {% endblock scripts %}
+{% endblock %}

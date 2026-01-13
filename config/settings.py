@@ -72,6 +72,9 @@ TEMPLATES = [
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
+
+                # AÑADE ESTA LÍNEA AQUÍ ABAJO:
+                'seo.context_processors.notifications_processor',
             ],
         },
     },
@@ -134,3 +137,14 @@ STATICFILES_DIRS = [
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+# 1. La URL del Broker (donde Django envía las tareas)
+CELERY_BROKER_URL = 'redis://127.0.0.1:6379/0'
+
+# 2. Donde se guardan los resultados (opcional pero recomendado)
+CELERY_RESULT_BACKEND = 'redis://127.0.0.1:6379/0'
+
+# 3. Configuraciones de seguridad para Windows
+CELERY_ACCEPT_CONTENT = ['json']
+CELERY_TASK_SERIALIZER = 'json'
+CELERY_RESULT_SERIALIZER = 'json'

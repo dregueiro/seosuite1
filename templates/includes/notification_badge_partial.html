@@ -1,0 +1,38 @@
+<a class="nav-link dropdown-toggle" 
+   data-bs-toggle="dropdown" 
+   href="#" 
+   role="button"
+   hx-get="{% url 'seo:mark_notifications_as_read' %}" 
+   hx-trigger="click">
+    <i data-feather="bell" class="noti-icon"></i>
+    {% if unread_notifications_count > 0 %}
+        <span class="badge bg-danger rounded-circle noti-icon-badge">{{ unread_notifications_count }}</span>
+    {% endif %}
+</a>
+
+<div class="dropdown-menu dropdown-menu-end dropdown-lg">
+    <div class="dropdown-item noti-title">
+        <h5 class="m-0">Notificaciones</h5>
+    </div>
+
+    <div class="noti-scroll" style="max-height: 230px; overflow-y: auto;">
+        {% for notification in user_notifications %}
+            <a href="{% if notification.audit %}{% url 'seo:url_audit' pk=notification.audit.project.pk %}{% else %}javascript:void(0);{% endif %}" 
+               class="dropdown-item notify-item border-bottom {% if not notification.is_read %}bg-light{% endif %}">
+                <div class="notify-icon bg-primary"><i class="mdi mdi-google"></i></div>
+                <p class="notify-details">
+                    {{ notification.message }}
+                    <small class="text-muted d-block">{{ notification.created_at|timesince }}</small>
+                </p>
+            </a>
+        {% empty %}
+            <div class="p-3 text-center">
+                <p class="text-muted m-0">No hay notificaciones</p>
+            </div>
+        {% endfor %}
+    </div>
+</div>
+
+<script>
+    if (typeof feather !== 'undefined') { feather.replace(); }
+</script>
