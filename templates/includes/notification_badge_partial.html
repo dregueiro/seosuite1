@@ -1,15 +1,22 @@
 <a class="nav-link dropdown-toggle" 
    data-bs-toggle="dropdown" 
    href="#" 
-   role="button"
+   role="button" 
+   aria-haspopup="false" 
+   aria-expanded="false"
    hx-get="{% url 'seo:mark_notifications_as_read' %}" 
-   hx-trigger="click">
+   hx-trigger="click"
+   hx-swap="none"
+   onclick="const badge = this.querySelector('.noti-icon-badge'); if(badge) badge.remove();">
+    
     <i data-feather="bell" class="noti-icon"></i>
+    
     {% if unread_notifications_count > 0 %}
-        <span class="badge bg-danger rounded-circle noti-icon-badge">{{ unread_notifications_count }}</span>
+        <span class="badge bg-danger rounded-circle noti-icon-badge">
+            {{ unread_notifications_count }}
+        </span>
     {% endif %}
 </a>
-
 <div class="dropdown-menu dropdown-menu-end dropdown-lg">
     <div class="dropdown-item noti-title">
         <h5 class="m-0">Notificaciones</h5>
@@ -34,5 +41,6 @@
 </div>
 
 <script>
+    // Esto es seguro porque feather solo reemplaza iconos
     if (typeof feather !== 'undefined') { feather.replace(); }
 </script>

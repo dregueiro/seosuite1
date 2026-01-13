@@ -9,8 +9,17 @@ class KeywordIdeaAdmin(admin.ModelAdmin):
     search_fields = ('keyword',)
 
 # Registro para la Auditoría de URLs (Lo nuevo)
+# keyword_research/admin.py
 @admin.register(URLAudit)
 class URLAuditAdmin(admin.ModelAdmin):
-    list_display = ('url', 'verdict', 'status', 'last_inspected', 'project')
-    list_filter = ('project', 'verdict')
+    # Asegúrate de que cada nombre aquí exista en models.py
+    list_display = (
+        'url', 
+        'verdict',          # Verifica si es 'status' o 'index_status' en tu modelo
+        'last_inspected',   # Verifica si es 'updated_at' o similar
+        'project',          # Verifica si el campo ForeignKey existe
+    )
+    
+    # Solo puedes filtrar por campos que existan
+    list_filter = ('project', 'verdict') 
     search_fields = ('url',)

@@ -26,12 +26,18 @@ def check_notifications(request):
 
 @login_required
 def mark_notifications_as_read(request):
-    """
-    Marca todas las notificaciones del usuario como leídas.
-    Se activa cuando el usuario hace clic en la campana.
-    """
+    # Marcamos como leídas
     Notification.objects.filter(user=request.user, is_read=False).update(is_read=True)
-    return HttpResponse(status=204) # 204 significa 'Sin contenido' (éxito silencioso)
+    
+    # Si es HTMX, devolvemos el parcial con los datos actualizados
+    if request.headers.get('HX-Request'):
+        context = {
+            'unread_notifications_count': 0,
+            'user_notifications': Notification.objects.filter(user=request.user).order_by('-created_at')[:5]
+        }
+        return render(request, 'includes/notification_badge_partial.html', context)
+    
+    return HttpResponse(status=204)
 
 
 

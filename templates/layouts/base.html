@@ -45,45 +45,17 @@
         <!-- App js-->
          <script src="{% static 'vendor/hando/js/app.js' %}"></script>
         <script>
-            // Esto "dibuja" los iconos en la pantalla
-            feather.replace();
-            // Configuración global de Toasts (notificaciones pequeñas)
-            const Toast = Swal.mixin({
-                toast: true,
-                position: 'top-end',
-                showConfirmButton: false,
-                timer: 3000,
-                timerProgressBar: true,
-                didOpen: (toast) => {
-                    toast.addEventListener('mouseenter', Swal.stopTimer)
-                    toast.addEventListener('mouseleave', Swal.resumeTimer)
-                }
-            });
-
-            // Detectar mensajes de Django
             {% if messages %}
                 {% for message in messages %}
                     Toast.fire({
-                        icon: '{{ message.tags }}', // success, error, info, warning
+                        icon: '{{ message.tags }}', 
                         title: '{{ message }}'
                     });
                 {% endfor %}
             {% endif %}
-            {% if unread_notifications_count > 0 %}
-            Swal.fire({
-                title: '¡Nueva actualización de Google!',
-                text: 'Una de tus URLs ha cambiado de estado.',
-                icon: 'success',
-                confirmButtonText: 'Ver Auditoría'
-            }).then((result) => {
-                if (result.isConfirmed) {
-                    window.location.href = "{% url 'url_audit_view' project.id %}";
-                }
-            })
-            {% endif %}
+            
+            // ELIMINA EL BLOQUE DE Swal.fire DE AQUÍ
         </script>
-        {% block scripts %} 
-        
-        {% endblock %}
+        {% block scripts %} {% endblock %}
     </body>
 </html>

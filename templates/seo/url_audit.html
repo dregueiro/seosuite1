@@ -24,6 +24,8 @@
                             <tr>
                                 <th>Página (URL)</th>
                                 <th>Estado en Google</th>
+
+                                <th>Google Referencia</th>
                                 <th>Último Rastreo</th>
                                 <th>Acción</th>
                             </tr>
@@ -43,6 +45,16 @@
                                         <span class="badge bg-soft-warning text-warning fs-12">No Descubierta</span>
                                     {% else %}
                                         <span class="badge bg-soft-danger text-danger fs-12">{{ audit.verdict|default:"Pendiente" }}</span>
+                                    {% endif %}
+                                </td>
+                                 <td class="align-middle">
+                                    {% if audit.sitemap_status == "Success" %}
+                                        <span class="badge bg-success">Válido</span>
+                                    {% elif audit.sitemap_status == "No se pudo obtener" %}
+                                        <span class="badge bg-danger">Error de Lectura</span>
+                                        <i class="mdi mdi-help-circle text-muted" title="Google no pudo acceder al archivo o la URL no es un XML"></i>
+                                    {% else %}
+                                        <span class="badge bg-light text-dark">Pendiente</span>
                                     {% endif %}
                                 </td>
                                 <td>

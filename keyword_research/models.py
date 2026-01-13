@@ -18,6 +18,20 @@ class URLAudit(models.Model):
     last_inspected = models.DateTimeField(auto_now=True)
     verdict = models.CharField(max_length=100, blank=True, null=True) # "NEUTRAL", "GOOD", "BAD"
     indexing_requested_at = models.DateTimeField(null=True, blank=True)
+    sitemap_status = models.CharField(
+        max_length=100, 
+        blank=True, 
+        null=True, 
+        help_text="Estado reportado por GSC (ej: Success, No se pudo obtener)"
+    )
+    
+    def get_sitemap_badge_class(self):
+        mapping = {
+            'Success': 'bg-success',
+            'Couldn\'t fetch': 'bg-danger',
+            'Pending': 'bg-warning text-dark',
+        }
+        return mapping.get(self.sitemap_status, 'bg-secondary')
     
     def __str__(self):
         return self.url
