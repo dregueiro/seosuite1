@@ -5,12 +5,10 @@ from django.db.models import Sum, Count
 from django.views import View
 from django.contrib.auth.decorators import login_required
 from django.http import HttpResponse
-
 from projects.models import Project
-from integrations.services import test_gsc_access, test_ga4_access
 from keyword_research.models import KeywordIdea, URLAudit
 from keyword_research.services import import_google_ads_csv, sync_urls_from_sitemap
-from integrations.services import inspect_url_status, force_indexing_url
+from integrations.services.google_auth import GoogleAuthService
 from .tasks import auto_check_google_status
 from .models import Notification
 
@@ -47,7 +45,7 @@ class RequestIndexingView(View):
         audit = get_object_or_404(URLAudit, pk=audit_id, project=project)
         
         # Llamamos al servicio del "Rayo" ⚡
-        success, message = force_indexing_url(project, audit.url)
+        success, msg = GoogleAuthService.force_indexing_url(proyect, url)
         
         if success:
             # CAMBIAMOS EL ESTADO AQUÍ
@@ -72,7 +70,7 @@ def inspect_single_url(request, pk, audit_id):
     audit = get_object_or_404(URLAudit, pk=audit_id, project=project)
     
     # Llamamos a la API de Google
-    result = inspect_url_status(project, audit.url)
+    resultado = GoogleAuthService.inspect_url_status(proyect, url)
     # --- AÑADE ESTO PARA DEBUGEAR ---
     print(f"--- INSPECCIÓN PARA: {audit.url} ---")
     print(result) 
@@ -196,8 +194,9 @@ class ProjectDashboardView(DetailView):
         ).count()
 
         # 3. Estado de las APIs (Lo que ya tenías)
-        context['gsc_status'] = test_gsc_access(self.object)
-        context['ga4_status'] = test_ga4_access(self.object)
+        context['gsc_status'] = GoogleAuthService.test_gsc_access(self.object)
+        # REEMPLAZA POR:
+        context['ga4_status'] = GoogleAuthService.test_ga4_access(self.object)  
         
         return context
     

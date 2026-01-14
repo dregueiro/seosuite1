@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>Proyectos SEO</h2>
+        <a href="{% url 'projects:create' %}" class="btn btn-primary">+ Nuevo Proyecto</a>
+    </div>
+    <div class="card">
+        <div class="card-body">
+            <table id="projectsTable" class="table table-striped">
+                <thead>
+                    <tr>
+                        <th>Proyecto / Dominio</th>
+                        <th>Cliente</th>
+                        <th>Presupuesto (Propio/Heredado)</th>
+                        <th>Disponible Real</th>
+                        <th>Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for project in projects %}
+                    <tr>
+                        <td>
+                            <strong>{{ project.name }}</strong><br>
+                            <small class="text-muted">{{ project.domain }}</small>
+                        </td>
+                        <td>{{ project.client.name }}</td>
+                        <td>
+                            {% if project.authorized_monthly_budget > 0 %}
+                                ${{ project.authorized_monthly_budget }} (Fijo)
+                            {% else %}
+                                <span class="badge bg-light text-dark">Heredado del Cliente</span>
+                            {% endif %}
+                        </td>
+                        <td class="fw-bold {% if project.get_available_budget < 10 %}text-warning{% endif %}">
+                            ${{ project.get_available_budget|floatformat:2 }}
+                        </td>
+                        <td>
+                            <a href="{% url 'projects:update' project.pk %}" class="btn btn-sm btn-light">Configurar APIs</a>
+                            <div class="btn-group">
+                                <a href="{% url 'projects:update' project.pk %}" class="btn btn-sm btn-outline-secondary">
+                                    <i class="bi bi-gear"></i>
+                                </a>
+                                <button class="btn btn-sm btn-outline-success" title="Test GSC/GA4">
+                                    <i class="bi bi-google"></i>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

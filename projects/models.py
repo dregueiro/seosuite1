@@ -24,5 +24,22 @@ class Project(models.Model):
     ga4_property_id = models.CharField(max_length=100, blank=True, null=True)
     google_ads_customer_id = models.CharField(max_length=20, blank=True, null=True)
 
+    def get_available_budget(self):
+        """
+        Calcula el presupuesto disponible siguiendo la jerarquía de SEOSuite 2026:
+        1. Si el proyecto tiene presupuesto asignado (>0), manda el proyecto.
+        2. Si el proyecto está en 0, hereda del presupuesto global del Cliente.
+        """
+        if self.authorized_monthly_budget > 0:
+            # Lógica de Proyecto Independiente
+            return self.authorized_monthly_budget - self.current_month_spend
+        else:
+            # Lógica de Presupuesto Compartido (Costo $0 First / Shared)
+            return self.client.authorized_monthly_budget - self.client.current_month_spend
+
+    @property
+    def has_funds(self):
+        """Helper rápido para validaciones en Gates de APIs"""
+        return self.get_available_budget() > 0
     def __str__(self):
         return f"{self.name} ({self.domain})"

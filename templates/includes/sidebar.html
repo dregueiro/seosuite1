@@ -49,6 +49,28 @@
                                 </a>
                             </li>
                             {% endif %}
+                            <li class="menu-title">Configuración</li>
+
+                            <li class="nav-item">
+                                <a class="nav-link" href="{% url 'clients:list' %}">
+                                    <i class="bi bi-people"></i>
+                                    <span>Clientes</span>
+                                </a>
+                            </li>
+
+                            <li class="nav-item">
+                                <a class="nav-link" href="{% url 'projects:project_list' %}">
+                                    <i class="bi bi-folder"></i>
+                                    <span>Proyectos SEO</span>
+                                </a>
+                            </li>
+
+                            <li class="nav-item">
+                                <a class="nav-link" href="#">
+                                    <i class="bi bi-key"></i>
+                                    <span>API Keys / Google</span>
+                                </a>
+                            </li>
                         </ul>
             
                     </div>

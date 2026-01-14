@@ -4,22 +4,37 @@
 <div class="container-fluid">
     <div class="row">
         <div class="col-12 text-center my-4">
-            <h4 class="page-title">📂 Selecciona un Proyecto</h4>
-            <p class="text-muted">Elige el dominio sobre el que quieres trabajar en SEO Suite.</p>
+            <h4 class="page-title">📂 Mis Proyectos SEO</h4>
+            <p class="text-muted">Gestiona tus dominios, presupuestos y conexiones con Google.</p>
+            <a href="{% url 'projects:create' %}" class="btn btn-primary rounded-pill waves-effect waves-light mb-3">
+                <i class="fe-plus me-1"></i> Nuevo Proyecto
+            </a>
         </div>
     </div>
 
     <div class="row">
         {% for project in projects %}
-        <div class="col-md-4 col-xl-3">
+        <div class="col-md-6 col-xl-3">
             <div class="card product-box border">
                 <div class="card-body">
                     <div class="product-action">
-                        <a href="{% url 'projects:project_detail' project.pk %}" class="btn btn-success btn-xs waves-effect waves-light"><i class="mdi mdi-pencil"></i></a>
+                        <a href="{% url 'projects:update' project.pk %}" class="btn btn-success btn-xs waves-effect waves-light" title="Editar Configuración">
+                            <i class="mdi mdi-pencil"></i>
+                        </a>
+                        <a href="{% url 'projects:test_access' project.pk %}" class="btn btn-info btn-xs waves-effect waves-light" title="Test de Conexión Google">
+                            <i class="mdi mdi-google-glass"></i>
+                        </a>
                     </div>
 
-                    <div class="bg-light text-center p-3 mb-3">
+                    <div class="bg-light text-center p-3 mb-3 position-relative">
                         <i class="fe-globe display-4 text-primary"></i>
+                        <div class="mt-2">
+                            {% if project.google_credential %}
+                                <span class="badge bg-soft-success text-success">✅ Vinculado</span>
+                            {% else %}
+                                <span class="badge bg-soft-warning text-warning">⚠️ Sin API</span>
+                            {% endif %}
+                        </div>
                     </div>
 
                     <h5 class="font-16 mt-0">
@@ -27,11 +42,21 @@
                             {{ project.name }}
                         </a>
                     </h5>
-                    <p class="text-muted font-13 mb-3">{{ project.domain }}</p>
+                    <p class="text-muted font-13 mb-1">{{ project.domain }}</p>
                     
-                    <div class="d-grid">
+                    <div class="mb-3">
+                        <small class="text-muted d-block">Presupuesto Disponible:</small>
+                        <span class="fw-bold {% if project.get_available_budget < 5 %}text-danger{% else %}text-success{% endif %}">
+                            ${{ project.get_available_budget|floatformat:2 }}
+                        </span>
+                    </div>
+
+                    <div class="d-grid gap-2">
                         <a href="{% url 'keyword_research:magic_tool' %}?project={{ project.pk }}" class="btn btn-primary waves-effect waves-light">
                             <i class="fe-zap me-1"></i> Ir al Magic Tool
+                        </a>
+                        <a href="/seo/project/{{ project.pk }}/" class="btn btn-outline-secondary btn-sm waves-effect">
+                            Ver Dashboard GSC/GA4
                         </a>
                     </div>
                 </div>
@@ -40,7 +65,7 @@
         {% empty %}
         <div class="col-12 text-center">
             <div class="alert alert-info">
-                No hay proyectos creados todavía. <a href="/admin/projects/project/add/">Crea tu primer proyecto aquí.</a>
+                No hay proyectos creados todavía. <a href="{% url 'projects:create' %}">Crea tu primer proyecto aquí.</a>
             </div>
         </div>
         {% endfor %}

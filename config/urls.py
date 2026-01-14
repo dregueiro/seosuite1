@@ -25,4 +25,7 @@ urlpatterns = [
     path('seo/', include('seo.urls')), # Conectamos la app seo
     path('keyword-research/', include('keyword_research.urls', namespace='keyword_research')),
     path('projects/', include('projects.urls', namespace='projects')),
+    path('clients/', include('clients.urls', namespace='clients')),
 ]
+
+

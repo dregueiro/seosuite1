@@ -2,7 +2,7 @@ from celery import shared_task
 from datetime import timedelta
 from django.utils import timezone
 from .models import Notification
-from integrations.services import inspect_url_status
+from integrations.services.google_auth import GoogleAuthService
 from keyword_research.models import URLAudit
 
 

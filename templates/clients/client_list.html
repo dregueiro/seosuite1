@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>Gestión de Clientes</h2>
+        <a href="{% url 'clients:create' %}" class="btn btn-primary">+ Nuevo Cliente</a>
+    </div>
+    <div class="card">
+        <div class="card-body">
+            <table id="clientsTable" class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>Nombre</th>
+                        <th>Presupuesto Mensual</th>
+                        <th>Consumido (Mes)</th>
+                        <th>Estado</th>
+                        <th>Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for client in clients %}
+                    <tr>
+                        <td><strong>{{ client.name }}</strong></td>
+                        <td>${{ client.authorized_monthly_budget }}</td>
+                        <td class="{% if client.current_month_spend > client.authorized_monthly_budget %}text-danger{% endif %}">
+                            ${{ client.current_month_spend }}
+                        </td>
+                        <td>
+                            <span class="badge {% if client.is_active %}bg-success{% else %}bg-secondary{% endif %}">
+                                {{ client.is_active|yesno:"Activo,Inactivo" }}
+                            </span>
+                        </td>
+                        <td>
+                            <a href="{% url 'clients:update' client.pk %}" class="btn btn-sm btn-outline-primary">Editar</a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
