@@ -35,7 +35,7 @@ def auto_check_google_status(audit_id, check_number):
 
 def schedule_next_check(audit_id, current_step):
     # Tiempos: 15min, 2h, 24h
-    times = [10, 7200, 86400] # segundos
+    times = [900, 7200, 86400] # segundos
     
     next_step = current_step + 1
     

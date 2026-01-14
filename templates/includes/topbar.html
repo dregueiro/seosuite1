@@ -29,7 +29,12 @@
                     </button>
                 </li>
 
-                <li class="dropdown notification-list topbar-dropdown" id="notification-badge-container" ...>
+                <li class="dropdown notification-list topbar-dropdown" 
+                    id="notification-badge-container" 
+                    hx-get="{% url 'seo:check_notifications' %}" 
+                    hx-trigger="every 30s [!$(this).hasClass('show')]" 
+                    hx-swap="innerHTML">
+                    
                     {% include 'includes/notification_badge_partial.html' %}
                 </li>
 

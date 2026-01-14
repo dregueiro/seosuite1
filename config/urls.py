@@ -23,4 +23,6 @@ urlpatterns = [
     path('login/', auth_views.LoginView.as_view(template_name='registration/login.html'), name='login'),
     path('admin/', admin.site.urls),
     path('seo/', include('seo.urls')), # Conectamos la app seo
+    path('keyword-research/', include('keyword_research.urls', namespace='keyword_research')),
+    path('projects/', include('projects.urls', namespace='projects')),
 ]

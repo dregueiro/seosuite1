@@ -11,6 +11,7 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 import os
 from pathlib import Path
+from dotenv import load_dotenv
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -38,12 +39,15 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
 
-    # SEOSuite Apps
+    # Third Party Apps (Librerías externas)
+    'django_countries',
+
+    # SEOSuite Local Apps (Tus aplicaciones)
     'core.apps.CoreConfig',
     'clients.apps.ClientsConfig',
     'projects.apps.ProjectsConfig',
     'integrations.apps.IntegrationsConfig',
-    'keyword_research.apps.KeywordResearchConfig',
+    'keyword_research.apps.KeywordResearchConfig', # <--- MANTÉN SOLO ESTA
     'serp.apps.SerpConfig',
     'seo.apps.SeoConfig',
 ]
@@ -148,3 +152,11 @@ CELERY_RESULT_BACKEND = 'redis://127.0.0.1:6379/0'
 CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
+
+
+
+load_dotenv() # Carga las variables del archivo .env al sistema
+
+# Configuraciones de DataForSEO
+DATAFORSEO_LOGIN = os.getenv('DATAFORSEO_LOGIN')
+DATAFORSEO_PASSWORD = os.getenv('DATAFORSEO_PASSWORD')

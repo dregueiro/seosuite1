@@ -1,0 +1,49 @@
+{% extends "layouts/base.html" %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12 text-center my-4">
+            <h4 class="page-title">📂 Selecciona un Proyecto</h4>
+            <p class="text-muted">Elige el dominio sobre el que quieres trabajar en SEO Suite.</p>
+        </div>
+    </div>
+
+    <div class="row">
+        {% for project in projects %}
+        <div class="col-md-4 col-xl-3">
+            <div class="card product-box border">
+                <div class="card-body">
+                    <div class="product-action">
+                        <a href="{% url 'projects:project_detail' project.pk %}" class="btn btn-success btn-xs waves-effect waves-light"><i class="mdi mdi-pencil"></i></a>
+                    </div>
+
+                    <div class="bg-light text-center p-3 mb-3">
+                        <i class="fe-globe display-4 text-primary"></i>
+                    </div>
+
+                    <h5 class="font-16 mt-0">
+                        <a href="{% url 'keyword_research:magic_tool' %}?project={{ project.pk }}" class="text-dark">
+                            {{ project.name }}
+                        </a>
+                    </h5>
+                    <p class="text-muted font-13 mb-3">{{ project.domain }}</p>
+                    
+                    <div class="d-grid">
+                        <a href="{% url 'keyword_research:magic_tool' %}?project={{ project.pk }}" class="btn btn-primary waves-effect waves-light">
+                            <i class="fe-zap me-1"></i> Ir al Magic Tool
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% empty %}
+        <div class="col-12 text-center">
+            <div class="alert alert-info">
+                No hay proyectos creados todavía. <a href="/admin/projects/project/add/">Crea tu primer proyecto aquí.</a>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}

@@ -23,7 +23,7 @@
 
                     <!-- Start Content-->
                     <div class="container-fluid">
-
+                    
                         {% block content %}{% endblock %}
 
                     </div> <!-- container-fluid -->
@@ -36,14 +36,14 @@
             <!-- End Page content -->
             <!-- ============================================================== -->
 
-
+            {% include 'includes/vendor.html' %}
         </div>
         <!-- END wrapper -->
 
-        {% include 'includes/vendor.html' %}
+        
 
         <!-- App js-->
-         <script src="{% static 'vendor/hando/js/app.js' %}"></script>
+         
         <script>
             {% if messages %}
                 {% for message in messages %}
@@ -56,6 +56,6 @@
             
             // ELIMINA EL BLOQUE DE Swal.fire DE AQUÍ
         </script>
-        {% block scripts %} {% endblock %}
+        {% block extra_js %} {% endblock %}
     </body>
 </html>

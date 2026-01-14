@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block content %}
+<div class="page-content">
+    <div class="container-fluid">
+
+        <div class="row">
+            <div class="col-12">
+                <div class="page-title-box">
+                    <h4 class="page-title">Keyword Magic Tool</h4>
+                    <div class="page-title-right">
+                        <ol class="breadcrumb m-0">
+                            <li class="breadcrumb-item"><a href="javascript: void(0);">SEO Suite</a></li>
+                            <li class="breadcrumb-item active">Investigación</li>
+                        </ol>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row justify-content-center">
+            <div class="col-xl-8 col-lg-10">
+                <div class="card shadow-sm border-0">
+                    <div class="card-header bg-white py-3">
+                        <h5 class="card-title mb-0">
+                            <i class="mdi mdi-filter-variant me-1 text-primary"></i> 
+                            Configuración de Análisis para: <span class="text-primary">{{ project.name }}</span>
+                        </h5>
+                    </div>
+                    <div class="card-body p-4">
+                        <form action="{% url 'keyword_magic_results' %}" method="GET">
+                            <input type="hidden" name="project" value="{{ project.id }}">
+
+                            <div class="row g-4">
+                                <div class="col-12">
+                                    <label class="form-label fw-bold small text-uppercase">Palabra Clave Semilla</label>
+                                    <div class="input-group input-group-lg">
+                                        <span class="input-group-text bg-light"><i class="mdi mdi-magnify"></i></span>
+                                        <input type="text" name="q" class="form-control" placeholder="Ej: videographer, real estate, pizza..." required>
+                                    </div>
+                                    <div class="form-text mt-2 italic text-muted">Ingresa un término base para generar cientos de variaciones.</div>
+                                </div>
+
+                                <div class="col-md-6">
+                                    <label class="form-label fw-bold small text-uppercase">País de Búsqueda</label>
+                                    <select name="location_country" class="form-select">
+                                        {% for code, name in all_countries %}
+                                            <option value="{{ code }}" {% if project.target_country_code == code %}selected{% endif %}>
+                                                {{ name }}
+                                            </option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+
+                                <div class="col-md-6">
+                                    <label class="form-label fw-bold small text-uppercase">Idioma de Resultados</label>
+                                    <select name="language" class="form-select">
+                                        <option value="en" {% if project.language_code|lower == 'en' %}selected{% endif %}>English</option>
+                                        <option value="es" {% if project.language_code|lower == 'es' %}selected{% endif %}>Español</option>
+                                    </select>
+                                </div>
+
+                                <div class="col-12">
+                                    <label class="form-label fw-bold small text-uppercase text-primary">Segmentación Local (Ciudad/Estado)</label>
+                                    <div class="input-group">
+                                        <span class="input-group-text bg-soft-primary"><i class="mdi mdi-map-marker text-primary"></i></span>
+                                        <input type="text" name="location_name" class="form-control" placeholder="Ej: Gastonia, NC">
+                                    </div>
+                                    <div class="form-text">Si dejas esto vacío, el análisis será a nivel nacional.</div>
+                                </div>
+                            </div>
+
+                            <hr class="my-4">
+
+                            <div class="d-grid">
+                                <button type="submit" class="btn btn-primary btn-lg fw-bold shadow-sm py-3">
+                                    <i class="mdi mdi-rocket-launch me-2"></i> GENERAR IDEAS DE KEYWORDS
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+</div>
+{% endblock %}

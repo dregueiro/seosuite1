@@ -35,3 +35,20 @@ class URLAudit(models.Model):
     
     def __str__(self):
         return self.url
+    
+
+class KeywordStrategy(models.Model):
+    project = models.ForeignKey('projects.Project', on_delete=models.CASCADE)
+    name = models.CharField(max_length=255, default="Estrategia Principal")
+    created_at = models.DateTimeField(auto_now_add=True)
+    is_active = models.BooleanField(default=True)
+
+    def __clon_semrush_count__(self):
+        return self.items.count()
+
+class StrategyItem(models.Model):
+    strategy = models.ForeignKey(KeywordStrategy, related_name='items', on_delete=models.CASCADE)
+    keyword = models.CharField(max_length=255)
+    volume = models.IntegerField(default=0)
+    intent = models.CharField(max_length=50, blank=True)
+    priority = models.IntegerField(default=3) # 1: Alta, 2: Media, 3: Baja

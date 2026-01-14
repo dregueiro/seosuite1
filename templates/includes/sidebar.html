@@ -26,6 +26,7 @@
 <!-- Aqui empieza el menu-->
                         <ul id="side-menu">
                             <li class="menu-title">Análisis de Proyecto</li>
+                            {% if project and project.pk %}
                             <li>
                                 <a href="{% url 'seo:project_dashboard' project.pk %}">
                                     <i data-feather="home"></i>
@@ -35,9 +36,8 @@
 
                             <li class="menu-title">Keyword Research</li>
                             <li>
-                                <a href="{% url 'seo:project_dashboard' project.pk %}">
-                                    <i data-feather="zap"></i>
-                                    <span> Keyword Magic Tool </span>
+                                <a href="{% url 'keyword_research:magic_tool' %}?project={{ project.id }}">
+                                    <i data-feather="fe-zap"></i> <span> Keyword Magic Tool </span>
                                 </a>
                             </li>
 
@@ -48,6 +48,7 @@
                                     <span> Search Console </span>
                                 </a>
                             </li>
+                            {% endif %}
                         </ul>
             
                     </div>
