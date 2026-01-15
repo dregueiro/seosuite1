@@ -13,7 +13,9 @@ class KeywordDiscoveryService:
     """
     
     @classmethod
-    def get_ideas(cls, project, seed_keyword,location_code=None):
+    def get_ideas(cls, project, seed_keyword, location_code=None, country_code=None, language_code=None):
+    # Lógica para usar el código de localización del mapa o el país por defecto
+        target_location = location_code or country_code or 2724
         results = []
 
         # --- 1. INTENTO CON GOOGLE ADS API (Prioridad 1: Gratis/Oficial) ---

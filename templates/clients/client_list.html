@@ -1,43 +1,93 @@
 {% extends "base.html" %}
+{% load static %}
+
 {% block content %}
 <div class="container-fluid">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <h2>Gestión de Clientes</h2>
-        <a href="{% url 'clients:create' %}" class="btn btn-primary">+ Nuevo Cliente</a>
-    </div>
-    <div class="card">
-        <div class="card-body">
-            <table id="clientsTable" class="table table-hover">
-                <thead>
-                    <tr>
-                        <th>Nombre</th>
-                        <th>Presupuesto Mensual</th>
-                        <th>Consumido (Mes)</th>
-                        <th>Estado</th>
-                        <th>Acciones</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for client in clients %}
-                    <tr>
-                        <td><strong>{{ client.name }}</strong></td>
-                        <td>${{ client.authorized_monthly_budget }}</td>
-                        <td class="{% if client.current_month_spend > client.authorized_monthly_budget %}text-danger{% endif %}">
-                            ${{ client.current_month_spend }}
-                        </td>
-                        <td>
-                            <span class="badge {% if client.is_active %}bg-success{% else %}bg-secondary{% endif %}">
-                                {{ client.is_active|yesno:"Activo,Inactivo" }}
-                            </span>
-                        </td>
-                        <td>
-                            <a href="{% url 'clients:update' client.pk %}" class="btn btn-sm btn-outline-primary">Editar</a>
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
+    <div class="row">
+        <div class="col-12">
+            <div class="page-title-box">
+                <div class="page-title-right">
+                    <ol class="breadcrumb m-0">
+                        <li class="breadcrumb-item"><a href="/">Dashboard</a></li>
+                        <li class="breadcrumb-item active">Clientes</li>
+                    </ol>
+                </div>
+                <h4 class="page-title">Directorio de Clientes</h4>
+            </div>
         </div>
+    </div>
+
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-body">
+                    <div class="row justify-content-between">
+                        <div class="col-md-4">
+                            <form class="d-flex flex-wrap align-items-center">
+                                <label for="inputPassword2" class="visually-hidden">Buscar</label>
+                                <div class="me-3">
+                                    <input type="search" class="form-control" id="inputPassword2" placeholder="Buscar cliente...">
+                                </div>
+                            </form>
+                        </div>
+                        <div class="col-md-8">
+                            <div class="text-md-end mt-3 mt-md-0">
+                                <a href="{% url 'clients:create' %}" class="btn btn-success waves-effect waves-light me-1"><i class="mdi mdi-plus-circle me-1"></i> Nuevo Cliente</a>
+                                <button type="button" class="btn btn-white waves-effect">Importar</button>
+                                <button type="button" class="btn btn-white waves-effect">Exportar</button>
+                            </div>
+                        </div></div> </div>
+            </div> </div></div>
+
+    <div class="row">
+        {% for client in clients %}
+        <div class="col-xl-3 col-lg-4">
+            <div class="card text-center">
+                <div class="card-body">
+                    <div class="dropdown float-end">
+                        <a href="#" class="dropdown-toggle arrow-none card-drop" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="mdi mdi-dots-vertical"></i>
+                        </a>
+                        <div class="dropdown-menu dropdown-menu-end">
+                            <a href="{% url 'clients:update' client.pk %}" class="dropdown-item">Editar</a>
+                            <a href="{% url 'clients:delete' client.pk %}" class="dropdown-item text-danger">Eliminar</a>
+                        </div>
+                    </div>
+
+                    <div class="avatar-xl mx-auto mb-3">
+                        <div class="avatar-title bg-soft-primary text-primary display-5 rounded-circle">
+                            {{ client.name|slice:":1" }}{{ client.last_name|slice:":1" }}
+                        </div>
+                    </div>
+
+                    <h4 class="mb-1"><a href="#" class="text-dark">{{ client.name }} {{ client.last_name }}</a></h4>
+                    <p class="text-muted font-13">{{ client.company_name|default:"Empresa Particular" }}</p>
+
+                    <div class="text-center mb-3">
+                        <p class="text-muted mb-1 font-13"><i class="mdi mdi-email-outline me-1"></i>{{ client.email }}</p>
+                        <p class="text-muted mb-0 font-13"><i class="mdi mdi-phone-outline me-1"></i>{{ client.phone|default:"Sin teléfono" }}</p>
+                    </div>
+
+                    <div class="row g-0 mt-3 border-top pt-3">
+                        <div class="col-6">
+                            <h5 class="mb-0">{{ client.project_set.count }}</h5>
+                            <p class="text-muted font-12 mb-0">Proyectos</p>
+                        </div>
+                        <div class="col-6">
+                            <a href="{% url 'projects:by_client' client.id %}" class="btn btn-soft-primary btn-sm w-100">
+                                <i class="mdi mdi-account-cog me-1"></i>Gestionar
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div> </div> {% empty %}
+        <div class="col-12 text-center mt-4">
+            <div class="alert alert-light p-4">
+                No hay clientes registrados. <a href="{% url 'clients:create' %}">Crea el primero aquí.</a>
+            </div>
+        </div>
+        {% endfor %}
     </div>
 </div>
 {% endblock %}
+

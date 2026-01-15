@@ -79,6 +79,7 @@ TEMPLATES = [
 
                 # AÑADE ESTA LÍNEA AQUÍ ABAJO:
                 'seo.context_processors.notifications_processor',
+                'core.context_processors.active_project', # <--- AGREGAR ESTO
             ],
         },
     },
@@ -160,3 +161,4 @@ load_dotenv() # Carga las variables del archivo .env al sistema
 # Configuraciones de DataForSEO
 DATAFORSEO_LOGIN = os.getenv('DATAFORSEO_LOGIN')
 DATAFORSEO_PASSWORD = os.getenv('DATAFORSEO_PASSWORD')
+GOOGLE_ADS_DEVELOPER_TOKEN = os.getenv("GOOGLE_ADS_DEVELOPER_TOKEN")

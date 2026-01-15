@@ -1,4 +1,8 @@
 from django.db import models
+from django.db.models import Sum
+from django.utils import timezone
+from core.models import Run # Asegúrate de que los Runs estén en core
+
 from clients.models import Client
 from integrations.models import GoogleCredential # Importación nueva
 
@@ -24,18 +28,35 @@ class Project(models.Model):
     ga4_property_id = models.CharField(max_length=100, blank=True, null=True)
     google_ads_customer_id = models.CharField(max_length=20, blank=True, null=True)
 
+    # REGLA DE ORO: Control de Presupuesto
+    authorized_monthly_budget = models.DecimalField(
+        max_digits=10, 
+        decimal_places=2, 
+        default=50.00,
+        help_text="Presupuesto máximo mensual para APIs de pago (SerpAPI/DataForSEO)."
+    )
+
+    # Campos para persistencia de integración
+    gsc_verified = models.BooleanField(default=False)
+    ga4_verified = models.BooleanField(default=False)
+    ads_verified = models.BooleanField(default=False)
+    last_integration_check = models.DateTimeField(null=True, blank=True)
+
+    @property
     def get_available_budget(self):
-        """
-        Calcula el presupuesto disponible siguiendo la jerarquía de SEOSuite 2026:
-        1. Si el proyecto tiene presupuesto asignado (>0), manda el proyecto.
-        2. Si el proyecto está en 0, hereda del presupuesto global del Cliente.
-        """
-        if self.authorized_monthly_budget > 0:
-            # Lógica de Proyecto Independiente
-            return self.authorized_monthly_budget - self.current_month_spend
-        else:
-            # Lógica de Presupuesto Compartido (Costo $0 First / Shared)
-            return self.client.authorized_monthly_budget - self.client.current_month_spend
+        """Calcula el presupuesto restante del mes actual."""
+        now = timezone.now()
+        start_of_month = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        
+        # Sumamos el costo de todos los RUNS exitosos de este mes para este proyecto
+        total_spent = Run.objects.filter(
+            project=self,
+            status='SUCCESS',
+            created_at__gte=start_of_month
+        ).aggregate(total=Sum('cost_units'))['total'] or 0
+        
+        available = float(self.authorized_monthly_budget) - float(total_spent)
+        return max(0, available) # Nunca devolver negativo
 
     @property
     def has_funds(self):

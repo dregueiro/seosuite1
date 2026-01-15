@@ -1,27 +1,50 @@
 import os
+import json
+import tempfile
 from google.ads.googleads.client import GoogleAdsClient
 from django.conf import settings
 
 class GoogleAdsService:
+
+
     @classmethod
     def _get_client(cls, project):
-        """
-        Construye el cliente de Google Ads usando la credencial vinculada al proyecto.
-        """
         cred = project.google_credential
         if not cred:
-            return None
+            raise ValueError("No hay credenciales configuradas.")
 
-        # Estructura de configuración requerida por la librería oficial
-        google_ads_config = {
+        # 1. Creamos un archivo temporal para el JSON de la Service Account
+        # La librería de Ads prefiere leer una ruta de archivo real.
+        with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.json') as temp_json:
+            json.dump(cred.service_account_json, temp_json)
+            temp_json_path = temp_json.name
+
+        # 2. Configuramos el diccionario con la RUTA al archivo temporal
+        config_dict = {
             "developer_token": settings.GOOGLE_ADS_DEVELOPER_TOKEN,
-            "client_id": cred.client_id,
-            "client_secret": cred.client_secret,
-            "refresh_token": cred.refresh_token,
+            "json_key_file_path": temp_json_path, # <--- Usamos PATH en lugar de DATA
             "use_proto_plus": True,
         }
-        
-        return GoogleAdsClient.load_from_dict(google_ads_config)
+
+        # login_customer_id es opcional
+        customer_id = str(project.google_ads_customer_id).replace("-", "")
+        if customer_id:
+            config_dict["login_customer_id"] = customer_id
+
+        try:
+            # 3. Cargamos el cliente
+            client = GoogleAdsClient.load_from_dict(config_dict)
+            return client
+        except Exception as e:
+            raise ValueError(f"Error crítico en configuración de Ads: {str(e)}")
+        finally:
+            # 4. Limpieza: Intentamos borrar el archivo temporal después de cargar el cliente
+            try:
+                if os.path.exists(temp_json_path):
+                    os.remove(temp_json_path)
+            except:
+                pass
+            
 
     @classmethod
     def get_ideas(cls, project, seed_keyword):

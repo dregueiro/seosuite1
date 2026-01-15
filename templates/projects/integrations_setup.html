@@ -1,0 +1,276 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block content %}
+<div class="page-content">
+    <div class="container-fluid">
+
+        <div class="row">
+            <div class="col-12">
+                <div class="page-title-box d-flex align-items-center justify-content-between">
+                    <h4 class="mb-0 text-uppercase fw-bold">Configuración de Integraciones</h4>
+                </div>
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="col-xl-8">
+                <div class="card shadow-sm border-0">
+                    <div class="card-header bg-white py-3 border-bottom">
+                        <h5 class="card-title mb-0 text-primary"><i class="mdi mdi-cog-outline me-1"></i> Parámetros del Proyecto</h5>
+                    </div>
+                    <div class="card-body p-4">
+                        <form method="post" id="mainIntegrationForm">
+                            {% csrf_token %}
+                            
+                            <div class="mb-4">
+                                <label class="form-label fw-bold text-uppercase small text-muted">Service Account (JSON)</label>
+                                <div class="input-group">
+                                    {{ form.google_credential }}
+                                    <button class="btn btn-outline-success" type="button" onclick="openCredModal('create')" title="Nueva">
+                                        <i class="mdi mdi-plus"></i>
+                                    </button>
+                                    <button class="btn btn-outline-primary" type="button" onclick="openCredModal('edit')" title="Editar">
+                                        <i class="mdi mdi-pencil"></i>
+                                    </button>
+                                    <button class="btn btn-outline-danger" type="button" onclick="deleteCredential()" title="Eliminar">
+                                        <i class="mdi mdi-close"></i>
+                                    </button>
+                                </div>
+                                <div class="form-text mt-2 italic">La llave maestra que otorga acceso a las APIs de Google.</div>
+                            </div>
+
+                            <hr class="my-4 border-light">
+
+                            <div class="row g-4">
+                                <div class="col-md-12">
+                                    <label class="form-label fw-bold small text-muted text-uppercase">G. Search Console (URL)</label>
+                                    {{ form.gsc_property_url }}
+                                    <div class="form-text">Ej: https://epicmoments.media/ (Debe incluir / al final)</div>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label fw-bold small text-muted text-uppercase">Analytics (GA4 Property ID)</label>
+                                    {{ form.ga4_property_id }}
+                                    <div class="form-text">Ej: 517901959</div>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label fw-bold small text-muted text-uppercase">Google Ads (Customer ID)</label>
+                                    {{ form.google_ads_customer_id }}
+                                    <div class="form-text">Ej: 511-099-9249</div>
+                                </div>
+                            </div>
+
+                            <div class="mt-5 text-end border-top pt-4">
+                                <button type="submit" class="btn btn-primary btn-lg px-5 shadow-sm fw-bold">
+                                    <i class="mdi mdi-content-save me-1"></i> GUARDAR TODO
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-xl-4">
+                <div class="card shadow-sm border-0">
+                    <div class="card-header bg-white py-3 border-bottom">
+                        <h5 class="card-title mb-0 text-primary">Estado de Conexión</h5>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="list-group list-group-flush">
+                            
+                            <div class="list-group-item py-3 px-4">
+                                <div class="d-flex align-items-center">
+                                    <div class="avatar-sm flex-shrink-0">
+                                        <span class="avatar-title {% if object.gsc_verified %}bg-success text-white{% else %}bg-soft-info text-info{% endif %} rounded-circle" id="icon-gsc">
+                                            <i class="mdi {% if object.gsc_verified %}mdi-check-bold{% else %}mdi-google-search{% endif %} font-22"></i>
+                                        </span>
+                                    </div>
+                                    <div class="flex-grow-1 ms-3">
+                                        <h6 class="mb-1 fw-bold">Search Console</h6>
+                                        <small id="msg-gsc" class="{% if object.gsc_verified %}text-success fw-bold{% else %}text-muted{% endif %} small">
+                                            {% if object.gsc_verified %}Conexión verificada{% else %}Pendiente de verificación{% endif %}
+                                        </small>
+                                    </div>
+                                    <button onclick="runTest('gsc')" class="btn btn-sm {% if object.gsc_verified %}btn-soft-success{% else %}btn-light border{% endif %} shadow-sm" id="btn-gsc">
+                                        {% if object.gsc_verified %}RE-TEST{% else %}TEST{% endif %}
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div class="list-group-item py-3 px-4">
+                                <div class="d-flex align-items-center">
+                                    <div class="avatar-sm flex-shrink-0">
+                                        <span class="avatar-title {% if object.ga4_verified %}bg-success text-white{% else %}bg-soft-success text-success{% endif %} rounded-circle" id="icon-ga4">
+                                            <i class="mdi {% if object.ga4_verified %}mdi-check-bold{% else %}mdi-chart-bar{% endif %} font-22"></i>
+                                        </span>
+                                    </div>
+                                    <div class="flex-grow-1 ms-3">
+                                        <h6 class="mb-1 fw-bold">Analytics GA4</h6>
+                                        <small id="msg-ga4" class="{% if object.ga4_verified %}text-success fw-bold{% else %}text-muted{% endif %} small">
+                                            {% if object.ga4_verified %}Conexión verificada{% else %}Sin verificar{% endif %}
+                                        </small>
+                                    </div>
+                                    <button onclick="runTest('ga4')" class="btn btn-sm {% if object.ga4_verified %}btn-soft-success{% else %}btn-light border{% endif %} shadow-sm" id="btn-ga4">
+                                        {% if object.ga4_verified %}RE-TEST{% else %}TEST{% endif %}
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div class="list-group-item py-3 px-4">
+                                <div class="d-flex align-items-center">
+                                    <div class="avatar-sm flex-shrink-0">
+                                        <span class="avatar-title {% if object.ads_verified %}bg-success text-white{% else %}bg-soft-warning text-warning{% endif %} rounded-circle" id="icon-ads">
+                                            <i class="mdi {% if object.ads_verified %}mdi-check-bold{% else %}mdi-google-ads{% endif %} font-22"></i>
+                                        </span>
+                                    </div>
+                                    <div class="flex-grow-1 ms-3">
+                                        <h6 class="mb-1 fw-bold">Google Ads</h6>
+                                        <small id="msg-ads" class="{% if object.ads_verified %}text-success fw-bold{% else %}text-muted{% endif %} small">
+                                            {% if object.ads_verified %}Conexión verificada{% else %}Sin verificar{% endif %}
+                                        </small>
+                                    </div>
+                                    <button onclick="runTest('ads')" class="btn btn-sm {% if object.ads_verified %}btn-soft-success{% else %}btn-light border{% endif %} shadow-sm" id="btn-ads">
+                                        {% if object.ads_verified %}RE-TEST{% else %}TEST{% endif %}
+                                    </button>
+                                </div>
+                            </div>
+
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="modalCredential" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content shadow-lg border-0">
+            <div class="modal-header bg-light">
+                <h5 class="modal-title fw-bold" id="modalTitle">Credencial de Google</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-4">
+                <input type="hidden" id="cred_id">
+                <div class="mb-3">
+                    <label class="form-label fw-bold text-muted small">Nombre Identificador</label>
+                    <input type="text" id="cred_name" class="form-control" placeholder="Ej: SA Proyecto Epic">
+                </div>
+                <div class="mb-0">
+                    <label class="form-label fw-bold text-muted small">Contenido JSON (Service Account)</label>
+                    <textarea id="cred_json" class="form-control font-monospace text-primary bg-light" rows="12" style="font-size: 12px;"></textarea>
+                </div>
+            </div>
+            <div class="modal-footer bg-light">
+                <button type="button" class="btn btn-white" data-bs-dismiss="modal">Cerrar</button>
+                <button type="button" class="btn btn-primary px-4 shadow-sm" onclick="saveCredential()">
+                    <i class="mdi mdi-check me-1"></i> Guardar Credencial
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .avatar-sm { height: 42px; width: 42px; }
+    .bg-soft-info { background-color: rgba(59, 175, 218, 0.15) !important; color: #3bafda !important; }
+    .bg-soft-success { background-color: rgba(26, 188, 156, 0.15) !important; color: #1abc9c !important; }
+    .bg-soft-warning { background-color: rgba(246, 187, 66, 0.15) !important; color: #f6bb42 !important; }
+    .font-monospace { font-family: 'Courier New', Courier, monospace !important; }
+    .italic { font-style: italic; }
+</style>
+
+
+
+<script>
+const bsModal = new bootstrap.Modal(document.getElementById('modalCredential'));
+
+// GESTIÓN DE CREDENCIALES
+function openCredModal(mode) {
+    const credSelect = document.getElementById('id_google_credential');
+    const credId = credSelect.value;
+
+    if (mode === 'create') {
+        document.getElementById('modalTitle').innerText = "Nueva Service Account";
+        document.getElementById('cred_id').value = "";
+        document.getElementById('cred_name').value = "";
+        document.getElementById('cred_json').value = "";
+        bsModal.show();
+    } else {
+        if (!credId) { alert("Selecciona una credencial primero."); return; }
+        fetch(`/integrations/credentials/${credId}/get/`)
+            .then(res => res.json())
+            .then(data => {
+                document.getElementById('modalTitle').innerText = "Editar Credencial: " + data.name;
+                document.getElementById('cred_id').value = data.id;
+                document.getElementById('cred_name').value = data.name;
+                document.getElementById('cred_json').value = JSON.stringify(data.json, null, 2);
+                bsModal.show();
+            });
+    }
+}
+
+function saveCredential() {
+    const id = document.getElementById('cred_id').value;
+    const payload = {
+        name: document.getElementById('cred_name').value,
+        service_account_json: document.getElementById('cred_json').value
+    };
+    if (!payload.name || !payload.service_account_json) return alert("Completa los campos.");
+
+    const url = id ? `/integrations/credentials/${id}/update/` : "/integrations/credentials/quick-create/";
+
+    fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-CSRFToken": "{{ csrf_token }}" },
+        body: JSON.stringify(payload)
+    }).then(res => res.json()).then(data => {
+        if (data.status === 'success') location.reload();
+        else alert("Error: " + data.message);
+    });
+}
+
+function deleteCredential() {
+    const credId = document.getElementById('id_google_credential').value;
+    if (!credId) return alert("Selecciona una credencial.");
+    if (confirm("¿Eliminar permanentemente?")) {
+        fetch(`/integrations/credentials/${credId}/delete/`, {
+            method: "POST",
+            headers: { "X-CSRFToken": "{{ csrf_token }}" }
+        }).then(() => location.reload());
+    }
+}
+
+// GESTIÓN DE TESTS
+function runTest(apiType) {
+    const btn = document.getElementById(`btn-${apiType}`);
+    const msg = document.getElementById(`msg-${apiType}`);
+    const icon = document.getElementById(`icon-${apiType}`);
+
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+    msg.innerText = 'Verificando...';
+
+    fetch(`/projects/{{ object.id }}/test-access/?type=${apiType}`)
+        .then(res => res.json())
+        .then(data => {
+            msg.innerText = data.message;
+            if (data.status === 'success') {
+                msg.className = 'text-success small fw-bold';
+                icon.className = 'avatar-title bg-success text-white rounded-circle';
+                icon.innerHTML = '<i class="mdi mdi-check-bold font-22"></i>';
+                btn.className = 'btn btn-sm btn-soft-success shadow-sm';
+                btn.innerText = 'RE-TEST';
+            } else {
+                msg.className = 'text-danger small fw-bold';
+                icon.className = 'avatar-title bg-danger text-white rounded-circle';
+                icon.innerHTML = '<i class="mdi mdi-alert-circle font-22"></i>';
+            }
+        })
+        .finally(() => {
+            btn.disabled = false;
+            if (!btn.innerText.includes('RE-TEST')) btn.innerText = 'TEST';
+        });
+}
+</script>
+{% endblock %}

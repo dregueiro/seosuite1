@@ -1,20 +1,104 @@
 {% extends "base.html" %}
+{% load static %}
+
 {% block content %}
-<div class="container mt-4">
-    <div class="card shadow-sm">
-        <div class="card-header bg-white">
-            <h4>{% if object %}Editar{% else %}Crear{% endif %} Registro</h4>
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="page-title-box">
+                <h4 class="page-title">Configuración de Proyecto: {{ object.name|default:"Nuevo" }}</h4>
+            </div>
         </div>
-        <div class="card-body">
-            <form method="post">
-                {% csrf_token %}
-                {{ form.as_p }}
-                <hr>
-                <div class="d-flex justify-content-between">
-                    <button type="submit" class="btn btn-success">Guardar Cambios</button>
-                    <a href="." class="btn btn-link text-muted">Cancelar</a>
+    </div>
+
+    <div class="row justify-content-center">
+        <div class="col-lg-11">
+            <div class="card">
+                <div class="card-body">
+                    <form method="POST">
+                        {% csrf_token %}
+
+                        <h5 class="mb-3 text-uppercase bg-light p-2"><i class="fe-info me-1"></i> Identification</h5>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Nombre del Proyecto</label>
+                                <input type="text" name="name" class="form-control" value="{{ form.name.value|default:'' }}" placeholder="Ej: EPIC Moments">
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Dominio (URL)</label>
+                                <input type="text" name="domain" class="form-control" value="{{ form.domain.value|default:'' }}" placeholder="http://epicmoments.media">
+                            </div>
+                        </div>
+
+                        <hr class="my-4">
+
+                        <h5 class="mb-3 text-uppercase bg-light p-2"><i class="fe-google me-1"></i> Detalles de Google (Identidades)</h5>
+                        
+                        <div class="row mb-3">
+                            <div class="col-md-4">
+                                <label class="form-label">G. Search Console (URL)</label>
+                                <input type="text" name="gsc_property_url" class="form-control" value="{{ form.gsc_property_url.value|default:'' }}" placeholder="https://...">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Google Ads ID</label>
+                                <input type="text" name="google_ads_customer_id" class="form-control" value="{{ form.google_ads_customer_id.value|default:'' }}" placeholder="511-099-9249">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Google Analytics ID</label>
+                                <input type="text" name="ga4_property_id" class="form-control" value="{{ form.ga4_property_id.value|default:'' }}" placeholder="517901959">
+                            </div>
+                        </div>
+
+                        <div class="row mb-3 align-items-end">
+                            <div class="col-md-10">
+                                <label class="form-label">Google Credential</label>
+                                {{ form.google_credential }}
+                                <small class="text-muted">Service Account para GSC, GA4 y Ads.</small>
+                            </div>
+                            <div class="col-md-2">
+                                <a href="#" class="btn btn-outline-primary w-100 waves-effect waves-light">
+                                    <i class="fe-settings me-1"></i> Config
+                                </a>
+                            </div>
+                        </div>
+
+                        <hr class="my-4">
+
+                        <h5 class="mb-3 text-uppercase bg-light p-2"><i class="fe-target me-1"></i> Localización & Idioma</h5>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Idioma</label>
+                                {{ form.target_country_code }} 
+                                <small class="text-muted">Idioma principal para el tracking de Keywords.</small>
+                            </div>
+
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Idioma</label>
+                                {{ form.language_code }} 
+                                <small class="text-muted">Region de busqueda (google Serach Region)</small>
+                            </div>                        
+
+                        <div class="row mb-4">
+                            <div class="col-md-4">
+                                <label class="form-label">Presupuesto Mensual Autorizado</label>
+                                <div class="input-group">
+                                    <span class="input-group-text">$</span>
+                                    <input type="number" name="authorized_monthly_budget" class="form-control" value="{{ form.authorized_monthly_budget.value|default:'50.00' }}">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row mt-4">
+                            <div class="col-12 text-end">
+                                <button type="submit" class="btn btn-primary waves-effect waves-light px-4">
+                                    <i class="fe-save me-1"></i> Guardar Cambios
+                                </button>
+                                <a href="{% url 'projects:list' %}" class="btn btn-light waves-effect ms-2">Cancelar</a>
+                            </div>
+                        </div>
+                    </form>
                 </div>
-            </form>
+            </div>
         </div>
     </div>
 </div>

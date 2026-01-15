@@ -26,6 +26,7 @@ urlpatterns = [
     path('keyword-research/', include('keyword_research.urls', namespace='keyword_research')),
     path('projects/', include('projects.urls', namespace='projects')),
     path('clients/', include('clients.urls', namespace='clients')),
+    path('integrations/', include('integrations.urls', namespace='integrations')),
 ]
 
 

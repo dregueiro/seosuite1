@@ -29,10 +29,9 @@
                         </h5>
                     </div>
                     <div class="card-body p-4">
-                        <form action="{% url 'keyword_magic_results' %}" method="GET">
-                            <input type="hidden" name="project" value="{{ project.id }}">
-
-                            <div class="row g-4">
+                        <form action="{% url 'keyword_research:magic_tool_home' %}" method="GET">
+                           <input type="hidden" name="project" value="{{ project.id }}">
+                             <div class="row g-4">
                                 <div class="col-12">
                                     <label class="form-label fw-bold small text-uppercase">Palabra Clave Semilla</label>
                                     <div class="input-group input-group-lg">
