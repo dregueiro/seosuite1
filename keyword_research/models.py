@@ -52,3 +52,43 @@ class StrategyItem(models.Model):
     volume = models.IntegerField(default=0)
     intent = models.CharField(max_length=50, blank=True)
     priority = models.IntegerField(default=3) # 1: Alta, 2: Media, 3: Baja
+
+# keyword_research/models.py
+
+class GoogleAdsLocation(models.Model):
+    """
+    Tabla Maestra oficial de Geotargets de Google Ads.
+    Fuente: https://developers.google.com/google-ads/api/data/geotargets
+    """
+    # El ID oficial de Google (ej: 2840 para US, 1014986 para Charlotte)
+    criteria_id = models.BigIntegerField(primary_key=True, help_text="Google GeoTarget ID")
+    
+    # Datos descriptivos
+    name = models.CharField(max_length=255, db_index=True)  # Indexado para búsqueda rápida
+    canonical_name = models.CharField(max_length=500, db_index=True) # Indexado para el autocomplete
+    parent_id = models.BigIntegerField(null=True, blank=True)
+    country_code = models.CharField(max_length=10, db_index=True)
+    target_type = models.CharField(max_length=100) # City, State, Country, etc.
+    status = models.CharField(max_length=50) # Active/Removal
+
+    def __str__(self):
+        return f"{self.canonical_name} ({self.criteria_id})"
+
+    class Meta:
+        verbose_name = "Google Ads Location"
+        ordering = ['name']
+
+class GoogleAdsLanguage(models.Model):
+    """
+    Códigos de idioma oficiales de Google Ads.
+    Ej: 1000 = English, 1003 = Spanish
+    """
+    criteria_id = models.BigIntegerField(primary_key=True)
+    name = models.CharField(max_length=100)
+    code = models.CharField(max_length=10, help_text="ISO Code (en, es, fr)")
+
+    def __str__(self):
+        return f"{self.name} ({self.code})"
+
+    class Meta:
+        ordering = ['name']

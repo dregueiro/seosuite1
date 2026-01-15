@@ -1,10 +1,16 @@
 import json
+import requests
 from django.views.generic import TemplateView, View
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib import messages
 from django.shortcuts import redirect, get_object_or_404
 from django.urls import reverse
 from django.http import JsonResponse
+from django.core.cache import cache
+from django.db.models import Q
+from django.core.cache import cache # <--- Importante para Zero-Cost
+from django.utils.decorators import method_decorator
+from django.views.decorators.cache import cache_page
 from django_countries import countries
 from .services.ads_import import import_google_ads_csv  
 from .services.orchestrator import KeywordDiscoveryService
@@ -13,26 +19,84 @@ from .services.clustering import KeywordClusteringService
 from .services.close_variants import CloseVariantsService
 from .models import KeywordIdea
 from projects.models import Project
-from .services.geo_service import GeoLocationService
 from core.models import Run
+from .models import GoogleAdsLocation,GoogleAdsLanguage
 
-class GeoSearchAjaxView(LoginRequiredMixin, View):
+class GeoProxyView(LoginRequiredMixin, View):
     """
-    Autocomplete de ciudades y estados para el mapa.
+    Proxy para evitar CORS y cachear peticiones a OpenStreetMap (Nominatim).
+    Frontend -> Django -> OSM
     """
-    def get(self, request, *args, **kwargs):
+    def get(self, request):
         query = request.GET.get('q', '').strip()
-        country_code = request.GET.get('country_code', 'US')
-        project_id = request.GET.get('project_id')
-        # Podríamos sacar el country_code del proyecto si quisiéramos ser más estrictos
-
- 
-        
-        if len(query) < 3:
+        if not query:
             return JsonResponse([], safe=False)
 
-        locations = GeoLocationService.search_locations(query, country_code=country_code)
-        return JsonResponse(locations, safe=False)
+        # 1. Zero-Cost: Verificar Caché primero (30 días)
+        cache_key = f"geo_osm_{query.lower().replace(' ', '_')}"
+        cached_data = cache.get(cache_key)
+
+        if cached_data:
+            print(f"⚡ Serving from Cache: {query}")
+            return JsonResponse(cached_data, safe=False)
+
+        # 2. Llamada a OSM (Server-to-Server)
+        url = "https://nominatim.openstreetmap.org/search"
+        params = {
+            'q': query,
+            'format': 'json',
+            'limit': 1,
+            'addressdetails': 1
+        }
+        headers = {
+            'User-Agent': 'SEOSuite-SaaS/1.0 (dev-testing)' # Necesario para no ser bloqueado
+        }
+
+        try:
+            print(f"🌍 Fetching form OSM: {query}")
+            response = requests.get(url, params=params, headers=headers, timeout=5)
+            response.raise_for_status()
+            data = response.json()
+
+            # 3. Guardar en Caché
+            if data:
+                cache.set(cache_key, data, timeout=60*60*24*30)
+
+            return JsonResponse(data, safe=False)
+
+        except Exception as e:
+            print(f"❌ Error en GeoProxy: {e}")
+            return JsonResponse([], safe=False)
+# --- VISTAS DE AUTOCOMPLETE (NUEVAS) ---
+class LanguageAutocompleteView(LoginRequiredMixin, View):
+    """ Busca en la DB de GoogleAdsLanguage para Select2 """
+    def get(self, request):
+        query = request.GET.get('q', '').strip()
+        if not query:
+            langs = GoogleAdsLanguage.objects.filter(code__in=['en', 'es', 'fr', 'de', 'pt'])
+        else:
+            langs = GoogleAdsLanguage.objects.filter(
+                Q(name__icontains=query) | Q(code__icontains=query)
+            )[:20]
+        results = [{'id': l.criteria_id, 'text': l.name} for l in langs]
+        return JsonResponse({'results': results})
+    
+class LocationAutocompleteView(LoginRequiredMixin, View):
+    """ Busca en la DB de GoogleAdsLocation para Select2 """
+    def get(self, request):
+        query = request.GET.get('q', '').strip()
+        if len(query) < 2:
+            return JsonResponse({'results': []})
+        
+        locations = GoogleAdsLocation.objects.filter(
+            status='Active'
+        ).filter(
+            Q(canonical_name__icontains=query) | Q(name__icontains=query)
+        ).order_by('-target_type', 'name')[:30]
+
+        results = [{'id': l.criteria_id, 'text': f"{l.canonical_name} ({l.target_type})"} for l in locations]
+        return JsonResponse({'results': results})
+
 
 class SaveKeywordsAjaxView(LoginRequiredMixin, View):
     """Guarda o actualiza keywords seleccionadas desde la tabla API."""
@@ -111,12 +175,13 @@ class KeywordOverviewView(LoginRequiredMixin, TemplateView):
         return context
 
 class KeywordMagicHomeView(LoginRequiredMixin, TemplateView):
-    """Página de bienvenida con el buscador grande."""
-    template_name = 'keyword_research/keyword_search_home.html' # <--- Asegúrate de que este existe
+    template_name = "keyword_research/keyword_search_home.html"
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context['all_countries'] = countries # Necesario para el selector de país
+        project_id = self.request.GET.get('project')
+        if project_id:
+            context['project'] = get_object_or_404(Project, pk=project_id, user=self.request.user)
         return context
 class MagicToolView(LoginRequiredMixin, TemplateView):
     """

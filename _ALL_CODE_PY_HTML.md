@@ -2009,9 +2009,9 @@ app_name = 'keyword_research'
 urlpatterns = [
     # Dashboard principal de la app (Resumen de Runs de keywords)
 # Esta es la que llamaremos desde la sidebar
-    path('magic/', views.MagicToolView.as_view(), name='magic_tool_home'),
+    path('magic/', views.KeywordMagicHomeView.as_view(), name='magic_tool_home'),
     
-    # Ruta para activación directa desde la lista de proyectos
+    # 2. Los resultados (La tabla mágica)
     path('magic/<int:pk>/', views.MagicToolView.as_view(), name='magic_tool'),
     path('api/discover/', views.KeywordDiscoveryAjaxView.as_view(), name='api_discover'),
     path('api/save-keywords/', views.SaveKeywordsAjaxView.as_view(), name='save_keywords'),
@@ -2032,7 +2032,7 @@ from django.shortcuts import redirect, get_object_or_404
 from django.urls import reverse
 from django.http import JsonResponse
 from django_countries import countries
-
+from .services.ads_import import import_google_ads_csv  
 from .services.orchestrator import KeywordDiscoveryService
 from .services.intent_resolver import IntentResolver
 from .services.clustering import KeywordClusteringService
@@ -2040,6 +2040,7 @@ from .services.close_variants import CloseVariantsService
 from .models import KeywordIdea
 from projects.models import Project
 from .services.geo_service import GeoLocationService
+from core.models import Run
 
 class GeoSearchAjaxView(LoginRequiredMixin, View):
     """
@@ -2060,79 +2061,66 @@ class GeoSearchAjaxView(LoginRequiredMixin, View):
         return JsonResponse(locations, safe=False)
 
 class SaveKeywordsAjaxView(LoginRequiredMixin, View):
+    """Guarda o actualiza keywords seleccionadas desde la tabla API."""
     def post(self, request, *args, **kwargs):
-        try:
-            data = json.loads(request.body)
-            project_id = data.get('project_id')
-            keywords_list = data.get('keywords', []) # Lista de objetos {keyword, volume, etc}
-            
-            project = Project.objects.get(id=project_id)
-            
-            created_count = 0
-            for item in keywords_list:
-                # Usamos update_or_create para no duplicar si ya existe la keyword en ese proyecto
-                obj, created = KeywordIdea.objects.update_or_create(
-                    project=project,
-                    keyword=item['keyword'],
-                    defaults={
-                        'avg_monthly_searches': item.get('volume', 0) if isinstance(item.get('volume'), int) else 0,
-                        # Aquí puedes añadir más campos si los tienes en el modelo
-                    }
-                )
-                if created:
-                    created_count += 1
-            
-            return JsonResponse({
-                'status': 'success', 
-                'message': f'✅ {created_count} keywords guardadas correctamente.'
-            })
-        except Exception as e:
-            return JsonResponse({'status': 'error', 'message': str(e)}, status=400)
+        data = json.loads(request.body)
+        project = get_object_or_404(Project, pk=data.get('project_id'))
+        keywords = data.get('keywords', [])
 
+        for kw in keywords:
+            KeywordIdea.objects.update_or_create(
+                project=project,
+                keyword=kw['keyword'],
+                defaults={
+                    'avg_monthly_searches': kw.get('volume', 0),
+                    'cpc': kw.get('cpc', 0),
+                    'competition_level': kw.get('kd', 0),
+                }
+            )
+        return JsonResponse({'status': 'success', 'message': f'{len(keywords)} keywords guardadas.'})
 class KeywordDiscoveryAjaxView(LoginRequiredMixin, View):
-    """
-    Endpoint AJAX para obtener ideas de keywords en tiempo real.
-    Ahora soporta segmentación local específica del mapa.
-    """
     def get(self, request, *args, **kwargs):
         query = request.GET.get('q')
         project_id = request.GET.get('project_id')
         
-        # Recibimos el código de ubicación del mapa (DataForSEO/Google ID)
-        location_code = request.GET.get('location_code')
+        # CAPTURAR VALORES DEL AUTOCOMPLETADO
+        # Si el usuario no eligió nada, usamos valores por defecto (España/Español)
+        location_id = request.GET.get('location_id') or "2724" 
+        language_id = request.GET.get('language_id') or "1014"
         
-        if not query or not project_id:
-            return JsonResponse({'status': 'error', 'message': 'Faltan parámetros'}, status=400)
+        project = get_object_or_404(Project, pk=project_id)
 
         try:
-            # 1. Obtener el proyecto
-            project = Project.objects.get(id=project_id)
-            
-            # 2. Determinar la ubicación:
-            # Si el usuario eligió una ciudad en el mapa, usamos esa.
-            # Si no, usamos la ubicación por defecto del proyecto.
-            target_location = location_code if location_code else project.target_location_id
-            
-            # 3. Llamada al Orquestador con el nuevo parámetro de ubicación
-            # Actualizamos la firma para pasar el location_code
-            ideas = KeywordDiscoveryService.get_ideas(
-                project=project, 
-                seed_keyword=query, 
-                location_code=target_location
+            # PASAR PARÁMETROS AL SERVICIO
+            # Asegúrate que GoogleAdsService.get_ideas acepte estos argumentos
+            results = GoogleAdsService.get_ideas(
+                project, 
+                query, 
+                location_id=location_id, 
+                language_id=language_id
             )
             
-            return JsonResponse({
-                'status': 'success',
-                'location_used': target_location, # Feedback para saber qué zona buscó
-                'data': ideas
-            })
-            
-        except Project.DoesNotExist:
-            return JsonResponse({'status': 'error', 'message': 'Proyecto no encontrado'}, status=404)
+            if not results:
+                return JsonResponse({'status': 'success', 'data': []})
+
+            formatted_data = [{
+                'keyword': res.get('text') or res.get('keyword'),
+                'volume': res.get('avg_monthly_searches') or 0,
+                'kd': res.get('competition_index') or 0,
+                'cpc': res.get('cpc') or 0
+            } for res in results]
+
+            return JsonResponse({'status': 'success', 'data': formatted_data})
+
         except Exception as e:
-            # Logueamos el error para debug pero no rompemos el front
-            print(f"Error en Discovery: {str(e)}")
-            return JsonResponse({'status': 'error', 'message': "Error al consultar las APIs externas"}, status=500)
+            # Esto evita el error de "undefined" en el forEach de JS
+            return JsonResponse({
+                'status': 'error', 
+                'message': str(e),
+                'data': [] 
+            }, status=500)
+
+
 
 class KeywordOverviewView(LoginRequiredMixin, TemplateView):
     """
@@ -2148,29 +2136,59 @@ class KeywordOverviewView(LoginRequiredMixin, TemplateView):
         context['last_runs'] = [] 
         return context
 
-class MagicToolView(TemplateView):
-    template_name = 'keyword_research/magic_tool.html'
+class KeywordMagicHomeView(LoginRequiredMixin, TemplateView):
+    """Página de bienvenida con el buscador grande."""
+    template_name = 'keyword_research/keyword_search_home.html' # <--- Asegúrate de que este existe
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        
-        # 1. Intentamos obtener el PK de la URL
-        project_id = self.kwargs.get('pk')
-        
-        # 2. Si no hay PK en URL, buscamos en la sesión
-        if not project_id:
-            project_id = self.request.session.get('active_project_id')
-        
-        # 3. Cargamos el proyecto o manejamos el caso de que no haya ninguno
-        if project_id:
-            project = get_object_or_404(Project, pk=project_id)
-            # Aseguramos que la sesión esté sincronizada
-            self.request.session['active_project_id'] = project.id
-            context['project'] = project
-        else:
-            context['project'] = None
-            
+        context['all_countries'] = countries # Necesario para el selector de país
         return context
+class MagicToolView(LoginRequiredMixin, TemplateView):
+    """
+    Vista principal estilo Semrush (Hando HRM Layout).
+    Maneja la visualización y la importación de CSV.
+    """
+    template_name = 'keyword_research/keyword_magic.html'
+
+    def post(self, request, *args, **kwargs):
+        """Procesa la subida de archivos CSV de Google Ads."""
+        project = get_object_or_404(Project, pk=self.kwargs.get('pk'))
+        csv_file = request.FILES.get('csv_file')
+        
+        if not csv_file:
+            messages.error(request, "Error: No se seleccionó ningún archivo.")
+            return redirect('keyword_research:magic_tool', pk=project.pk)
+            
+        success, message = import_google_ads_csv(project, csv_file)
+        if success:
+            messages.success(request, message)
+        else:
+            messages.error(request, message)
+            
+        return redirect('keyword_research:magic_tool', pk=project.pk)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        project = get_object_or_404(Project, pk=self.kwargs.get('pk'))
+        
+        # Filtro de búsqueda para la base de datos local
+        query = self.request.GET.get('q', '')
+        keywords = KeywordIdea.objects.filter(project=project)
+        if query:
+            keywords = keywords.filter(keyword__icontains=query)
+
+        context['project'] = project
+        context['keywords'] = keywords
+        
+        # Historial de ejecuciones (Runs) para el Offcanvas 
+        context['last_runs'] = Run.objects.filter(
+            project=project, 
+            kind__in=['keyword_discovery', 'keyword_import']
+        ).order_by('-created_at')[:10]
+        
+        return context    
+    
 class KeywordMagicView(LoginRequiredMixin, TemplateView):
     
     def dispatch(self, request, *args, **kwargs):
@@ -3623,6 +3641,9 @@ from django.shortcuts import render
     <link href="{% static 'vendor/hando/css/icons.min.css' %}" rel="stylesheet" type="text/css" />
     <link href="{% static 'vendor/hando/css/app.min.css' %}" rel="stylesheet" type="text/css" />
     <link rel="stylesheet" href="{% static 'vendor/hando/libs/leaflet/leaflet.css' %}" />   
+    <link href="{% static 'vendor/hando/libs/datatables.net-bs5/css/dataTables.bootstrap5.min.css' %}" rel="stylesheet" type="text/css" />
+    <link href="{% static 'vendor/hando/libs/datatables.net-responsive-bs5/css/responsive.bootstrap5.min.css' %}" rel="stylesheet" type="text/css" />
+
     {% block extra_css %}{% endblock %}
 </head>
 ```
@@ -3739,7 +3760,7 @@ from django.shortcuts import render
                 </li>
 
                 <li>
-                    <a href="{% url 'keyword_research:magic_tool_home' %}?project={{ sidebar_project.pk }}">
+                    <a href="{% url 'keyword_research:magic_tool_home' %}">
                         <i data-feather="zap"></i>
                         <span> Keyword Magic </span>
                     </a>
@@ -3843,6 +3864,9 @@ from django.shortcuts import render
 {% load static %}
 <script src="{% static 'vendor/hando/libs/jquery/jquery.min.js' %}"></script>
 <script src="{% static 'vendor/hando/libs/bootstrap/js/bootstrap.bundle.min.js' %}"></script>
+<script src="{% static 'vendor/hando/libs/datatables.net/js/jquery.dataTables.min.js' %}"></script>
+<script src="{% static 'vendor/hando/libs/datatables.net-bs5/js/dataTables.bootstrap5.min.js' %}"></script>
+<script src="{% static 'vendor/hando/libs/datatables.net-responsive/js/dataTables.responsive.min.js' %}"></script>
 <script src="{% static 'vendor/hando/libs/simplebar/simplebar.min.js' %}"></script>
 <script src="{% static 'vendor/hando/libs/node-waves/waves.min.js' %}"></script>
 <script src="{% static 'vendor/hando/libs/waypoints/lib/jquery.waypoints.min.js' %}"></script>
@@ -3913,271 +3937,373 @@ from django.shortcuts import render
 
 {% block content %}
 <div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="page-title-box">
+                <div class="page-title-right">
+                    <div class="d-flex align-items-center gap-2">
+                        <span class="badge {% if project.ads_verified %}bg-soft-success text-success{% else %}bg-soft-danger text-danger{% endif %} rounded-pill px-2 py-1 border shadow-sm">
+                            <i class="mdi mdi-circle {% if project.ads_verified %}text-success{% else %}text-danger{% endif %} me-1 font-10"></i> Ads API
+                        </span>
+                        <span class="badge {% if project.gsc_verified %}bg-soft-success text-success{% else %}bg-soft-danger text-danger{% endif %} rounded-pill px-2 py-1 border shadow-sm">
+                            <i class="mdi mdi-circle {% if project.gsc_verified %}text-success{% else %}text-danger{% endif %} me-1 font-10"></i> GSC
+                        </span>
+
+                        <form action="{% url 'keyword_research:magic_tool' project.pk %}" method="POST" enctype="multipart/form-data" id="csvForm" class="ms-2">
+                            {% csrf_token %}
+                            <input type="file" name="csv_file" id="csvFileInput" accept=".csv" style="display:none;" onchange="document.getElementById('csvForm').submit();">
+                            <button type="button" class="btn btn-white btn-sm border rounded-pill shadow-sm" onclick="document.getElementById('csvFileInput').click();">
+                                <i class="mdi mdi-upload text-primary me-1"></i> Ads CSV
+                            </button>
+                        </form>
+
+                        <button class="btn btn-outline-secondary btn-sm rounded-pill shadow-sm" data-bs-toggle="offcanvas" data-bs-target="#offcanvasHistory">
+                            <i class="mdi mdi-history me-1"></i> Historial
+                        </button>
+                    </div>
+                </div>
+                <h4 class="page-title">Keyword Magic Tool</h4>
+            </div>
+        </div>
+    </div>
+
+    {% if messages %}
+    <div class="row">
+        <div class="col-12">
+            {% for message in messages %}
+            <div class="alert alert-{{ message.tags }} alert-dismissible fade show shadow-sm" role="alert">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
     <div class="row mb-3">
         <div class="col-12">
-            <div class="page-title-box d-flex align-items-center justify-content-between">
-                <div>
-                    <h4 class="page-title mb-0">Keyword Magic Tool</h4>
-                    <p class="text-muted font-13 mb-0">Proyecto: <span class="fw-bold text-primary">{{ project.domain }}</span></p>
-                </div>
-                <div class="page-title-right">
-                    <ol class="breadcrumb m-0">
-                        <li class="breadcrumb-item"><a href="{% url 'projects:list' %}">Proyectos</a></li>
-                        <li class="breadcrumb-item active">Keyword Research</li>
-                    </ol>
+            <div class="card shadow-sm border-0">
+                <div class="card-body py-3">
+                    <div class="row g-2">
+                        <div class="col-lg-5">
+                            <label class="form-label font-12 text-muted text-uppercase fw-bold">Keyword Semilla</label>
+                            <div class="input-group">
+                                <span class="input-group-text bg-light border-end-0"><i class="mdi mdi-magnify font-20"></i></span>
+                                <input type="text" id="apiSearchInput" class="form-control border-start-0" placeholder="Ej: zapatillas de basket">
+                            </div>
+                        </div>
+
+                        <div class="col-lg-3 position-relative">
+                            <label class="form-label font-12 text-muted text-uppercase fw-bold">Ubicación (País/Ciudad)</label>
+                            <div class="input-group">
+                                <span class="input-group-text bg-light border-end-0"><i class="mdi mdi-map-marker"></i></span>
+                                <input type="text" id="geoInput" class="form-control border-start-0" placeholder="Escribe país o ciudad..." autocomplete="off">
+                                <input type="hidden" id="geoId" value="2724"> 
+                            </div>
+                            <div id="geoSuggestions" class="list-group shadow-lg position-absolute w-100" style="z-index: 1000; display: none; top: 70px;"></div>
+                        </div>
+
+                        <div class="col-lg-2 position-relative">
+                            <label class="form-label font-12 text-muted text-uppercase fw-bold">Idioma</label>
+                            <div class="input-group">
+                                <span class="input-group-text bg-light border-end-0"><i class="mdi mdi-translate"></i></span>
+                                <input type="text" id="langInput" class="form-control border-start-0" placeholder="Español" autocomplete="off" value="Español">
+                                <input type="hidden" id="langId" value="1014"> 
+                            </div>
+                            <div id="langSuggestions" class="list-group shadow-lg position-absolute w-100" style="z-index: 1000; display: none; top: 70px;"></div>
+                        </div>
+
+                        <div class="col-lg-2 d-flex align-items-end">
+                            <button class="btn btn-primary w-100 fw-bold shadow-sm py-2" type="button" onclick="buscarNuevasIdeas()">
+                                <i class="mdi mdi-auto-fix me-1"></i> INVESTIGAR
+                            </button>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
 
     <div class="row">
-        <div class="col-lg-2">
-            <div class="card">
-                <div class="card-header bg-light py-2">
-                    <h6 class="card-title mb-0 font-12 text-uppercase">Todos los grupos</h6>
-                </div>
-                <div class="list-group list-group-flush" style="max-height: 600px; overflow-y: auto;">
-                    <a href="?project={{ project.id }}" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center fw-bold">
-                        Todas las keywords
-                        <span class="badge bg-soft-secondary text-secondary rounded-pill">{{ keywords|length }}</span>
-                    </a>
-                    {% for group in groups %}
-                    <a href="?project={{ project.id }}&q={{ group.name }}" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
-                        <span class="text-truncate" title="{{ group.name|capfirst }}">{{ group.name|capfirst }}</span>
-                        <span class="badge bg-light text-dark rounded-pill">{{ group.count }}</span>
-                    </a>
-                    {% endfor %}
+        <div class="col-xl-2 col-lg-3">
+            <div class="card shadow-sm border-0 sticky-top" style="top: 80px;">
+                <div class="card-body p-0">
+                    <div class="p-2 bg-light border-bottom">
+                        <h6 class="m-0 font-12 text-muted text-uppercase fw-bold">Navegación</h6>
+                    </div>
+                    <div class="nav flex-column nav-pills p-2" id="v-pills-tab" role="tablist">
+                        <button class="nav-link active text-start mb-1 font-13" data-bs-toggle="pill" data-bs-target="#new-search-tab" type="button">
+                            <i class="mdi mdi-layers-search-outline me-1"></i> Resultados API
+                        </button>
+                        <button class="nav-link text-start font-13" data-bs-toggle="pill" data-bs-target="#saved-db-tab" type="button">
+                            <i class="mdi mdi-database-check me-1"></i> Base de Datos
+                        </button>
+                    </div>
+
+                    <div class="p-2 bg-light border-top border-bottom mt-2">
+                        <h6 class="m-0 font-12 text-muted text-uppercase fw-bold">Segmentos</h6>
+                    </div>
+                    <div class="list-group list-group-flush" id="dynamic-groups">
+                        <p class="text-muted small p-3 text-center italic">Analiza para ver sugerencias</p>
+                    </div>
                 </div>
             </div>
         </div>
 
-        <div class="col-lg-10">
-            <div class="card mb-3">
-                <div class="card-body py-2">
-                    <form method="GET" class="d-flex align-items-center gap-2">
-                        <input type="hidden" name="project" value="{{ project.id }}">
-                        
-                        <div class="input-group input-group-sm w-25">
-                            <span class="input-group-text bg-light border-end-0"><i class="fe-search"></i></span>
-                            <input type="text" name="q" class="form-control border-start-0" placeholder="Filtrar por palabra..." value="{{ request.GET.q }}">
+        <div class="col-xl-10 col-lg-9">
+            <div class="tab-content pt-0">
+                <div class="tab-pane fade show active" id="new-search-tab">
+                    <div class="card shadow-sm border-0">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <h5 class="card-title font-16">Resultados de Google Ads</h5>
+                                <div id="bulk-actions" style="display: none;">
+                                    <button onclick="guardarSeleccionadas()" class="btn btn-sm btn-success rounded-pill px-3">
+                                        <i class="mdi mdi-check-all me-1"></i> Guardar Selección (<span id="selected-count">0</span>)
+                                    </button>
+                                </div>
+                            </div>
+                            <table id="datatable-api" class="table table-hover table-centered w-100 mb-0 font-14">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th style="width: 20px;"><div class="form-check"><input type="checkbox" id="checkAllApi" class="form-check-input"></div></th>
+                                        <th>Keyword</th>
+                                        <th>Volumen</th>
+                                        <th>KD %</th>
+                                        <th>CPC (USD)</th>
+                                        <th class="text-end pe-3">Acciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody></tbody>
+                            </table>
                         </div>
-
-                        <select name="intent" class="form-select form-select-sm w-auto">
-                            <option value="">Cualquier Intención</option>
-                            <option value="I">Informativa</option>
-                            <option value="T">Transaccional</option>
-                        </select>
-
-                        <div class="ms-auto">
-                            {% if request.GET.expand == 'true' %}
-                                <a href="?project={{ project.id }}&q={{ request.GET.q }}" class="btn btn-sm btn-soft-danger">
-                                    <i class="fe-minus-circle me-1"></i> Ocultar Sugerencias
-                                </a>
-                            {% else %}
-                                <a href="?project={{ project.id }}&q={{ request.GET.q }}&expand=true" class="btn btn-sm btn-soft-primary">
-                                    <i class="fe-plus-circle me-1"></i> Generar Ideas (Gratis)
-                                </a>
-                            {% endif %}
-                            
-                            <button type="button" class="btn btn-sm btn-success ms-2">
-                                <i class="fe-download me-1"></i> Exportar
-                            </button>
-                        </div>
-                    </form>
+                    </div>
                 </div>
-            </div>
 
-            <div class="card">
-                <div class="card-body p-0">
-                    <div class="table-responsive">
-                        <table class="table table-hover table-centered mb-0" id="keyword-table">
-                            <thead class="table-light">
-                                <tr>
-                                    <th style="width: 20px;">
-                                        <div class="form-check">
-                                            <input type="checkbox" class="form-check-input" id="checkAll">
-                                        </div>
-                                    </th>
-                                    <th>Keyword</th>
-                                    <th class="text-center">Intent</th>
-                                    <th>Volumen</th>
-                                    <th>KD %</th>
-                                    <th>CPC (USD)</th>
-                                    <th class="text-end">Acciones</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {% for kw in keywords %}
-                                <tr {% if kw.is_suggestion %}class="bg-soft-light" style="font-style: italic;"{% endif %}>
-                                    <td>
-                                        <div class="form-check">
-                                            <input type="checkbox" class="form-check-input kw-checkbox">
-                                        </div>
-                                    </td>
-                                    <td>
-                                        <span class="fw-medium text-primary cursor-pointer">{{ kw.keyword }}</span>
-                                        {% if kw.is_suggestion %}
-                                            <span class="badge badge-soft-info ms-1" style="font-size: 9px;">SUGERIDA</span>
-                                        {% endif %}
-                                    </td>
-                                    <td class="text-center">
-                                        <span class="badge {% if kw.intent == 'T' or kw.intent == 'Transaccional' %}bg-soft-danger text-danger{% else %}bg-soft-info text-info{% endif %} rounded-pill px-2">
-                                            {{ kw.intent|first }}
-                                        </span>
-                                    </td>
-                                    <td>{{ kw.volume|default:"0" }}</td>
-                                    <td>
-                                        <div class="d-flex align-items-center" style="min-width: 80px;">
-                                            <span class="me-2">{{ kw.kd }}%</span>
-                                            <div class="progress progress-sm w-100" style="height: 4px;">
-                                                <div class="progress-bar {% if kw.kd > 70 %}bg-danger{% elif kw.kd > 40 %}bg-warning{% else %}bg-success{% endif %}" 
-                                                     role="progressbar" style="width: {{ kw.kd }}%"></div>
+                <div class="tab-pane fade" id="saved-db-tab">
+                    <div class="card shadow-sm border-0">
+                        <div class="card-body">
+                            <table id="datatable-saved" class="table table-hover table-centered w-100 mb-0 font-14">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Keyword</th>
+                                        <th>Volumen</th>
+                                        <th>KD %</th>
+                                        <th>CPC</th>
+                                        <th>Fecha</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for kw in keywords %}
+                                    <tr>
+                                        <td class="fw-bold text-primary">{{ kw.keyword }}</td>
+                                        <td>{{ kw.avg_monthly_searches|default:"0"|floatformat:0 }}</td>
+                                        <td>
+                                            <div class="d-flex align-items-center" style="width:100px">
+                                                <span class="me-2 small">{{ kw.competition_level }}%</span>
+                                                <div class="progress progress-sm w-100" style="height:4px">
+                                                    <div class="progress-bar {% if kw.competition_level > 60 %}bg-danger{% else %}bg-success{% endif %}" style="width:{{ kw.competition_level }}%"></div>
+                                                </div>
                                             </div>
-                                        </div>
-                                    </td>
-                                    <td>${{ kw.cpc|default:"0.00" }}</td>
-                                    <td class="text-end">
-                                        <button class="btn btn-sm btn-link text-muted p-0"><i class="fe-plus-square font-16"></i></button>
-                                    </td>
-                                </tr>
-                                {% empty %}
-                                <tr>
-                                    <td colspan="7" class="text-center py-4">
-                                        <i class="fe-search display-4 text-muted"></i>
-                                        <p class="mt-2">No se encontraron keywords. Intenta importar un CSV o activar la expansión.</p>
-                                    </td>
-                                </tr>
-                                {% endfor %}
-                            </tbody>
-                        </table>
+                                        </td>
+                                        <td class="text-success fw-bold">${{ kw.cpc|default:"0.00"|floatformat:2 }}</td>
+                                        <td class="text-muted small">{{ kw.created_at|date:"d/m/Y" }}</td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
     </div>
 </div>
+
+<div class="offcanvas offcanvas-end" tabindex="-1" id="offcanvasHistory" style="width: 400px;">
+    <div class="offcanvas-header bg-primary py-3">
+        <h5 class="offcanvas-title text-white">Historial de Ejecuciones</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="offcanvas"></button>
+    </div>
+    <div class="offcanvas-body p-0">
+        <div class="list-group list-group-flush">
+            {% for run in last_runs %}
+            <div class="list-group-item py-3">
+                <div class="d-flex justify-content-between align-items-center mb-1">
+                    <h6 class="m-0 text-primary fw-bold">{{ run.inputs.keyword|default:"Importación CSV" }}</h6>
+                    <span class="badge bg-soft-info text-info font-10 text-uppercase">{{ run.kind }}</span>
+                </div>
+                <small class="text-muted"><i class="mdi mdi-calendar me-1"></i>{{ run.created_at|date:"d M Y, H:i" }}</small>
+            </div>
+            {% empty %}
+            <div class="p-4 text-center text-muted">No hay registros de actividad.</div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+<style>
+    .nav-pills .nav-link.active { background-color: rgba(59, 175, 218, 0.1); color: #3bafda; font-weight: 600; }
+    .nav-pills .nav-link { color: #6c757d; border-radius: 5px; cursor: pointer; }
+    .page-title-box { padding-bottom: 5px; }
+    .list-group-item-action:hover { background-color: #f8f9fa; }
+</style>
 {% endblock %}
 
 {% block extra_js %}
 <script>
-document.addEventListener('DOMContentLoaded', function() {
-    const checkAll = document.getElementById('checkAll');
-    const tableBody = document.querySelector('#keyword-table tbody');
-    const btnSave = document.getElementById('btn-save-selected');
-    const selectedCountSpan = document.getElementById('selected-count');
+    let apiTable;
+    let savedTable;
 
-    // --- 1. GESTIÓN DE CHECKBOXES (Event Delegation) ---
-    // Usamos delegación de eventos para que funcione con filas nuevas
-    document.addEventListener('change', function(e) {
-        if (e.target.id === 'checkAll') {
-            const allCheckboxes = document.querySelectorAll('.kw-checkbox');
-            allCheckboxes.forEach(cb => cb.checked = e.target.checked);
-        }
-        
-        if (e.target.classList.contains('kw-checkbox') || e.target.id === 'checkAll') {
-            const selected = document.querySelectorAll('.kw-checkbox:checked').length;
-            if (selectedCountSpan) selectedCountSpan.innerText = selected;
-            if (btnSave) btnSave.style.display = selected > 0 ? 'inline-block' : 'none';
+    $(document).ready(function() {
+        apiTable = $('#datatable-api').DataTable({
+            language: { 
+                paginate: { previous: "<i class='mdi mdi-chevron-left'>", next: "<i class='mdi mdi-chevron-right'>" }, 
+                info: "Viendo _TOTAL_ ideas de Google Ads" 
+            },
+            pageLength: 20,
+            drawCallback: function() { $(".dataTables_paginate > .pagination").addClass("pagination-rounded"); }
+        });
+
+        savedTable = $('#datatable-saved').DataTable({
+            language: { 
+                paginate: { previous: "<i class='mdi mdi-chevron-left'>", next: "<i class='mdi mdi-chevron-right'>" }, 
+                info: "Viendo _TOTAL_ keywords en DB" 
+            },
+            pageLength: 20,
+            drawCallback: function() { $(".dataTables_paginate > .pagination").addClass("pagination-rounded"); }
+        });
+
+        // Inicializar Autocompletado
+        setupAutocomplete('geoInput', 'geoSuggestions', 'geoId', "{% url 'keyword_research:geo_search' %}");
+        setupAutocomplete('langInput', 'langSuggestions', 'langId', "{% url 'keyword_research:geo_search' %}");
+    });
+
+    function setupAutocomplete(inputId, suggestionsId, hiddenId, url) {
+        let timeout = null;
+        $(`#${inputId}`).on('input', function() {
+            const query = $(this).val();
+            clearTimeout(timeout);
+            if (query.length < 3) {
+                $(`#${suggestionsId}`).hide();
+                return;
+            }
+            timeout = setTimeout(() => {
+                fetch(`${url}?q=${encodeURIComponent(query)}`)
+                    .then(res => res.json())
+                    .then(data => {
+                        let html = '';
+                        data.results.forEach(item => {
+                            html += `<a href="javascript:void(0);" class="list-group-item list-group-item-action py-2 font-13 border-0" 
+                                        onclick="selectOption('${inputId}', '${suggestionsId}', '${hiddenId}', '${item.name}', '${item.criteria_id}')">
+                                        <i class="mdi mdi-check-circle-outline text-success me-1"></i> ${item.name}
+                                     </a>`;
+                        });
+                        $(`#${suggestionsId}`).html(html).show();
+                    });
+            }, 300);
+        });
+    }
+
+    function selectOption(inputId, suggestionsId, hiddenId, name, id) {
+        $(`#${inputId}`).val(name);
+        $(`#${hiddenId}`).val(id);
+        $(`#${suggestionsId}`).hide();
+    }
+
+    $(document).on('click', function(e) {
+        if (!$(e.target).closest('.position-relative').length) {
+            $('.list-group').hide();
         }
     });
 
-    // --- 2. FUNCIÓN DE BÚSQUEDA (Descubrimiento) ---
-    window.buscarNuevasIdeas = function() {
-        const queryInput = document.querySelector('input[name="q"]');
-        const query = queryInput ? queryInput.value : '';
-        const projectId = "{{ project.id }}";
+    function buscarNuevasIdeas() {
+    const query = $('#apiSearchInput').val();
+    const geoId = $('#geoId').val();   // El ID numérico de Google
+    const langId = $('#langId').val(); // El ID numérico de Google
 
-        if (!query) {
-            Swal.fire({ icon: 'warning', title: 'Atención', text: 'Escribe una palabra semilla' });
-            return;
-        }
+    if (!query) return Swal.fire('Atención', 'Ingresa una keyword', 'warning');
 
-        // Estado de carga en la tabla
-        tableBody.innerHTML = '<tr><td colspan="7" class="text-center py-5"><div class="spinner-border text-primary"></div><br>Buscando en Google Ads y DataForSEO...</td></tr>';
+    Swal.fire({ title: 'Consultando Google Ads...', didOpen: () => { Swal.showLoading(); } });
 
-        fetch(`/keyword-research/api/discover/?q=${query}&project_id=${projectId}`)
-            .then(response => response.json())
-            .then(res => {
-                if (res.status === 'success' && res.data.length > 0) {
-                    tableBody.innerHTML = ''; // Limpiar spinner
-                    
-                    res.data.forEach(item => {
-                        const row = `
-                            <tr class="api-result">
-                                <td>
-                                    <div class="form-check">
-                                        <input type="checkbox" class="kw-checkbox form-check-input">
-                                    </div>
-                                </td>
-                                <td>
-                                    <span class="fw-medium text-primary">${item.keyword}</span>
-                                    <span class="badge badge-soft-info ms-1" style="font-size: 9px;">${item.source}</span>
-                                </td>
-                                <td class="text-center">
-                                    <span class="badge bg-soft-secondary text-secondary rounded-pill">?</span>
-                                </td>
-                                <td>${item.volume.toLocaleString()}</td>
-                                <td>${item.kd || 0}%</td>
-                                <td>$${parseFloat(item.cpc).toFixed(2)}</td>
-                                <td class="text-end">
-                                    <button class="btn btn-sm btn-link text-muted p-0"><i class="fe-plus-square"></i></button>
-                                </td>
-                            </tr>
-                        `;
-                        tableBody.insertAdjacentHTML('beforeend', row);
-                    });
+    // URL con todos los parámetros
+    const url = `{% url 'keyword_research:api_discover' %}?q=${encodeURIComponent(query)}&project_id={{ project.id }}&location_id=${geoId}&language_id=${langId}`;
 
-                    Swal.fire({ icon: 'success', title: '¡Listo!', text: `Encontradas ${res.data.length} ideas nuevas.` });
-                } else {
-                    tableBody.innerHTML = '<tr><td colspan="7" class="text-center py-4">No se encontraron resultados para esta búsqueda.</td></tr>';
-                }
-            })
-            .catch(error => {
-                console.error("Error:", error);
-                Swal.fire({ icon: 'error', title: 'Error', text: 'No se pudo conectar con las APIs.' });
-            });
-    };
-
-    // --- 3. LÓGICA DE GUARDADO ---
-    if (btnSave) {
-        btnSave.addEventListener('click', function() {
-            const selectedRows = document.querySelectorAll('.kw-checkbox:checked');
-            const keywordsToSave = [];
-
-            selectedRows.forEach(cb => {
-                const row = cb.closest('tr');
-                keywordsToSave.push({
-                    keyword: row.querySelector('.fw-medium').innerText.trim(),
-                    volume: parseInt(row.cells[3].innerText.replace(/[^0-9]/g, '')) || 0
+    fetch(url)
+        .then(res => res.json())
+        .then(res => {
+            Swal.close();
+            // VALIDACIÓN CRUCIAL
+            if (res.status === 'success' && Array.isArray(res.data)) {
+                apiTable.clear();
+                res.data.forEach(item => {
+                    apiTable.row.add([
+                        `<div class="form-check"><input type="checkbox" class="kw-checkbox form-check-input" data-kw="${item.keyword}" data-vol="${item.volume}" data-cpc="${item.cpc}" data-kd="${item.kd}"></div>`,
+                        `<span class="fw-bold text-dark">${item.keyword}</span>`,
+                        item.volume.toLocaleString(),
+                        `<div class="d-flex align-items-center" style="width:100px">
+                            <span class="me-2 small">${item.kd}%</span>
+                            <div class="progress progress-sm w-100" style="height:4px"><div class="progress-bar bg-success" style="width:${item.kd}%"></div></div>
+                         </div>`,
+                        `<span class="text-success fw-bold">$${parseFloat(item.cpc).toFixed(2)}</span>`,
+                        `<div class="text-end pe-2"><button class="btn btn-sm btn-soft-primary rounded-circle"><i class="mdi mdi-plus"></i></button></div>`
+                    ]);
                 });
-            });
+                apiTable.draw();
+            } else {
+                Swal.fire('Error API', res.message || 'No se recibieron datos', 'error');
+            }
+        })
+        .catch(err => {
+            Swal.close();
+            Swal.fire('Error Crítico', 'El servidor no respondió correctamente.', 'error');
+        });
+}
 
-            fetch("{% url 'keyword_research:save_keywords' %}", {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRFToken': '{{ csrf_token }}'
-                },
-                body: JSON.stringify({
-                    project_id: "{{ project.id }}",
-                    keywords: keywordsToSave
-                })
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.status === 'success') {
-                    Swal.fire('¡Éxito!', data.message, 'success');
-                    selectedRows.forEach(cb => {
-                        cb.checked = false;
-                        cb.closest('tr').classList.add('table-success'); // Feedback visual de guardado
-                    });
-                    if (checkAll) checkAll.checked = false;
-                    btnSave.style.display = 'none';
-                }
-            });
+    function actualizarSidebarGrupos(data) {
+        const groups = {};
+        data.forEach(item => {
+            const word = item.keyword.split(' ')[0].toLowerCase();
+            if(word.length > 3) groups[word] = (groups[word] || 0) + 1;
+        });
+
+        let html = '';
+        Object.keys(groups).sort((a,b) => groups[b] - groups[a]).slice(0, 10).forEach(group => {
+            html += `
+            <a href="javascript:void(0);" onclick="apiTable.search('${group}').draw();" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center border-0 font-13">
+                <span class="text-capitalize"><i class="mdi mdi-chevron-right me-1 text-primary"></i>${group}</span>
+                <span class="badge bg-light text-muted rounded-pill">${groups[group]}</span>
+            </a>`;
+        });
+        $('#dynamic-groups').html(html);
+    }
+
+    function guardarSeleccionadas() {
+        const selected = $('.kw-checkbox:checked');
+        const keywords = Array.from(selected).map(cb => ({
+            keyword: cb.dataset.kw,
+            volume: cb.dataset.vol,
+            cpc: cb.dataset.cpc,
+            kd: cb.dataset.kd
+        }));
+
+        fetch("{% url 'keyword_research:save_keywords' %}", {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}'},
+            body: JSON.stringify({ project_id: "{{ project.id }}", keywords: keywords })
+        })
+        .then(res => res.json())
+        .then(data => {
+            if(data.status === 'success') {
+                Swal.fire('¡Éxito!', data.message, 'success').then(() => location.reload());
+            }
         });
     }
-});
+
+    $(document).on('change', '.kw-checkbox, #checkAllApi', function() {
+        if(this.id === 'checkAllApi') $('.kw-checkbox').prop('checked', this.checked);
+        $('#selected-count').text($('.kw-checkbox:checked').length);
+    });
 </script>
 {% endblock %}
 ```
@@ -4218,7 +4344,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         </h5>
                     </div>
                     <div class="card-body p-4">
-                        <form action="{% url 'keyword_research:magic_tool' %}" method="GET">
+                        <form action="{% url 'keyword_research:magic_tool_home' %}" method="GET">
                            <input type="hidden" name="project" value="{{ project.id }}">
                              <div class="row g-4">
                                 <div class="col-12">
@@ -5029,7 +5155,7 @@ function runTest(apiType) {
 ## `templates\seo\url_audit.html`
 
 ```html
-{% extends 'layouts/base.html' %}
+{% extends 'base.html' %}
 {% block content %}
 <div class="container-fluid">
     <div class="row">

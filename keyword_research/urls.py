@@ -4,13 +4,18 @@ from . import views
 app_name = 'keyword_research'
 
 urlpatterns = [
-    # Dashboard principal de la app (Resumen de Runs de keywords)
-# Esta es la que llamaremos desde la sidebar
+# --- Vistas Principales ---
     path('magic/', views.KeywordMagicHomeView.as_view(), name='magic_tool_home'),
-    
-    # 2. Los resultados (La tabla mágica)
     path('magic/<int:pk>/', views.MagicToolView.as_view(), name='magic_tool'),
+    
+    # --- APIs Internas (AJAX) ---
     path('api/discover/', views.KeywordDiscoveryAjaxView.as_view(), name='api_discover'),
     path('api/save-keywords/', views.SaveKeywordsAjaxView.as_view(), name='save_keywords'),
-    path('api/geo-search/', views.GeoSearchAjaxView.as_view(), name='geo_search'),
+    
+    # 🔥 ELIMINADO: path('api/geo-search/', views.GeoSearchAjaxView.as_view(), name='geo_search'),
+    # Esta era la versión vieja. La reemplazamos por las dos de abajo:
+    
+    path('api/locations-search/', views.LocationAutocompleteView.as_view(), name='location_search'),
+    path('api/languages-search/', views.LanguageAutocompleteView.as_view(), name='language_search'),
+    path('api/geo-proxy/', views.GeoProxyView.as_view(), name='geo_proxy'),
 ]

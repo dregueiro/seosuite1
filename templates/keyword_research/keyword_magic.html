@@ -60,21 +60,29 @@
                         </div>
 
                         <div class="col-lg-3 position-relative">
-                            <label class="form-label font-12 text-muted text-uppercase fw-bold">Ubicación (País/Ciudad)</label>
-                            <div class="input-group">
-                                <span class="input-group-text bg-light border-end-0"><i class="mdi mdi-map-marker"></i></span>
-                                <input type="text" id="geoInput" class="form-control border-start-0" placeholder="Escribe país o ciudad..." autocomplete="off">
-                                <input type="hidden" id="geoId" value="2724"> 
+                            <label class="form-label font-12 text-muted text-uppercase fw-bold">Target Location</label>
+                            <div class="mb-3">
+                                <select class="form-select" id="geo_target" name="location_id">
+                                    {% if current_location %}
+                                        <option value="{{ current_location.criteria_id }}" selected>
+                                            {{ current_location.canonical_name }}
+                                        </option>
+                                    {% endif %}
+                                </select>
+                                <div class="form-text text-muted">Escribe ciudad, estado o país (ej: "Madrid", "Miami").</div>
                             </div>
-                            <div id="geoSuggestions" class="list-group shadow-lg position-absolute w-100" style="z-index: 1000; display: none; top: 70px;"></div>
                         </div>
 
                         <div class="col-lg-2 position-relative">
                             <label class="form-label font-12 text-muted text-uppercase fw-bold">Idioma</label>
-                            <div class="input-group">
-                                <span class="input-group-text bg-light border-end-0"><i class="mdi mdi-translate"></i></span>
-                                <input type="text" id="langInput" class="form-control border-start-0" placeholder="Español" autocomplete="off" value="Español">
-                                <input type="hidden" id="langId" value="1014"> 
+                            <div class="mb-3">
+                                <select class="form-select" id="language_select" name="language_id">
+                                    {% if current_language %}
+                                        <option value="{{ current_language.criteria_id }}" selected>{{ current_language.name }}</option>
+                                    {% else %}
+                                        <option value="1000" selected>English</option>
+                                    {% endif %}
+                                </select>
                             </div>
                             <div id="langSuggestions" class="list-group shadow-lg position-absolute w-100" style="z-index: 1000; display: none; top: 70px;"></div>
                         </div>
@@ -220,6 +228,53 @@
 <script>
     let apiTable;
     let savedTable;
+
+     // ... Configuración de Location que ya tenías ...
+
+    // Configuración de LANGUAGE
+    $('#language_select').select2({
+        theme: 'bootstrap-5',
+        width: '100%',
+        placeholder: 'Selecciona idioma...',
+        ajax: {
+            url: "{% url 'keyword_research:language_search' %}", // Ojo con el namespace si lo usas
+            dataType: 'json',
+            delay: 250,
+            data: function (params) {
+                return { q: params.term };
+            },
+            processResults: function (data) {
+                return { results: data.results };
+            },
+            cache: true
+        }
+    });   
+
+    $(document).ready(function() {
+        $('#geo_target').select2({
+            theme: 'bootstrap-5',
+            width: '100%',
+            placeholder: '🔍 Buscar ubicación (ej: New York)...',
+            allowClear: true,
+            minimumInputLength: 2, // Espera a que escriba 2 letras
+            ajax: {
+                url: "{% url 'keyword_research:location_search' %}", // La URL que creamos arriba
+                dataType: 'json',
+                delay: 300, // Debounce: Espera 300ms al dejar de escribir (ahorra peticiones)
+                data: function (params) {
+                    return {
+                        q: params.term // Envía lo que escribe el usuario como ?q=...
+                    };
+                },
+                processResults: function (data) {
+                    return {
+                        results: data.results // Mapea la respuesta JSON de Django
+                    };
+                },
+                cache: true
+            }
+        });
+    });
 
     $(document).ready(function() {
         apiTable = $('#datatable-api').DataTable({
