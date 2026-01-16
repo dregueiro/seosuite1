@@ -10,6 +10,14 @@ class KeywordIdea(models.Model):
     # Este campo es el que te permite saber CUÁNDO se importó
     run = models.ForeignKey('core.Run', on_delete=models.SET_NULL, null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
+    # --- CAMPOS NUEVOS QUE FALTABAN ---
+    competition_index = models.IntegerField(default=0, null=True, blank=True) # 0 a 100
+    cpc = models.DecimalField(max_digits=10, decimal_places=4, default=0.00, null=True, blank=True) # Costo por clic
+    # ----------------------------------
+
+
+    def __str__(self):
+        return f"{self.keyword} ({self.avg_monthly_searches})"
 
 class URLAudit(models.Model):
     project = models.ForeignKey('projects.Project', on_delete=models.CASCADE)

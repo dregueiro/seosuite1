@@ -4,7 +4,7 @@
 
 **Included extensions:** .html, .py
 
-**Total files:** 114
+**Total files:** 118
 
 
 ---
@@ -1278,6 +1278,213 @@ class KeywordResearchConfig(AppConfig):
 
 ---
 
+## `keyword_research\management\commands\import_google_languages.py`
+
+```python
+from django.core.management.base import BaseCommand
+from keyword_research.models import GoogleAdsLanguage
+
+class Command(BaseCommand):
+    help = 'Carga los idiomas oficiales de Google Ads (IDs fijos)'
+
+    def handle(self, *args, **options):
+        # Fuente oficial: https://developers.google.com/google-ads/api/data/codes-formats#languages
+        # Seleccionamos los Top 40 más usados para no llenar de basura, 
+        # pero puedes agregar más si tus clientes son muy exóticos.
+        
+        LANGUAGES = [
+            (1000, 'English', 'en'),
+            (1003, 'Spanish', 'es'),
+            (1002, 'French', 'fr'),
+            (1001, 'German', 'de'),
+            (1004, 'Italian', 'it'),
+            (1019, 'Portuguese', 'pt'),
+            (1010, 'Dutch', 'nl'),
+            (1015, 'Russian', 'ru'),
+            (1017, 'Japanese', 'ja'),
+            (1012, 'Chinese (Simplified)', 'zh-CN'),
+            (1013, 'Chinese (Traditional)', 'zh-TW'),
+            (1014, 'Korean', 'ko'),
+            (1018, 'Polish', 'pl'),
+            (1030, 'Turkish', 'tr'),
+            (1006, 'Danish', 'da'),
+            (1007, 'Finnish', 'fi'),
+            (1011, 'Norwegian', 'no'),
+            (1009, 'Swedish', 'sv'),
+            (1005, 'Arabic', 'ar'),
+            (1022, 'Hebrew', 'iw'),
+            (1021, 'Hindi', 'hi'),
+            (1020, 'Thai', 'th'),
+            (1027, 'Vietnamese', 'vi'),
+            (1023, 'Hungarian', 'hu'),
+            (1029, 'Czech', 'cs'),
+            (1025, 'Romanian', 'ro'),
+            (1024, 'Indonesian', 'id'),
+            (1026, 'Slovak', 'sk'),
+            (1032, 'Ukrainian', 'uk'),
+            (1016, 'Greek', 'el'),
+            (1031, 'Urdu', 'ur'),
+            (1028, 'Bulgarian', 'bg'),
+            (1036, 'Croatian', 'hr'),
+            (1039, 'Lithuanian', 'lt'),
+            (1008, 'Icelandic', 'is'),
+        ]
+
+        self.stdout.write("💾 Cargando idiomas oficiales...")
+        
+        created_count = 0
+        for pid, name, code in LANGUAGES:
+            obj, created = GoogleAdsLanguage.objects.update_or_create(
+                criteria_id=pid,
+                defaults={'name': name, 'code': code}
+            )
+            if created:
+                created_count += 1
+
+        self.stdout.write(self.style.SUCCESS(f"✅ ¡Listo! {len(LANGUAGES)} idiomas disponibles (Agregados: {created_count})."))
+```
+
+---
+
+## `keyword_research\management\commands\import_google_locations.py`
+
+```python
+import csv
+import io
+import requests
+import zipfile
+import os
+import sys
+from django.core.management.base import BaseCommand
+from keyword_research.models import GoogleAdsLocation
+
+class Command(BaseCommand):
+    help = 'Importa los GeoTargets de Google Ads (Soporta URL o Archivo Local)'
+
+    # Página oficial para referencia
+    DOCS_PAGE_URL = 'https://developers.google.com/google-ads/api/data/geotargets'
+
+    def add_arguments(self, parser):
+        parser.add_argument('--url', type=str, help='URL directa del CSV/ZIP (si el auto-descubrimiento falla)')
+        parser.add_argument('--file', type=str, help='Ruta a un archivo local (.csv o .zip) ya descargado')
+
+    def handle(self, *args, **options):
+        content = None
+        
+        # MODO 1: Archivo Local (Prioridad Máxima - "Air Gap")
+        if options['file']:
+            file_path = options['file']
+            self.stdout.write(f"📂 Cargando desde archivo local: {file_path}")
+            if not os.path.exists(file_path):
+                self.stdout.write(self.style.ERROR("❌ El archivo no existe."))
+                return
+            
+            if file_path.endswith('.zip'):
+                with zipfile.ZipFile(file_path, 'r') as z:
+                    csv_filename = z.namelist()[0]
+                    with z.open(csv_filename) as f:
+                        content = f.read().decode('utf-8')
+            else:
+                with open(file_path, 'r', encoding='utf-8') as f:
+                    content = f.read()
+
+        # MODO 2: URL Proporcionada (Manual Override)
+        elif options['url']:
+            url = options['url']
+            self.stdout.write(f"⬇️  Descargando desde URL explícita: {url}")
+            content = self._download_content(url)
+
+        # MODO 3: Fallo Automático
+        else:
+            self.stdout.write(self.style.ERROR("❌ El modo automático requiere un navegador real por el JavaScript de Google."))
+            self.stdout.write(self.style.WARNING(f"👉 Por favor, ve a {self.DOCS_PAGE_URL}"))
+            self.stdout.write(self.style.WARNING("👉 Busca 'Latest CSV', haz click derecho y 'Copiar dirección de enlace'."))
+            self.stdout.write(self.style.WARNING("👉 Ejecuta: python manage.py import_google_locations --url \"LINK_COPIADO\""))
+            return
+
+        if not content:
+            self.stdout.write(self.style.ERROR("❌ No se pudo obtener contenido. Revisa la URL o el archivo."))
+            return
+
+        # PROCESAMIENTO (Común para todos los modos)
+        self._process_csv(content)
+
+    def _download_content(self, url):
+        try:
+            # Headers para parecer un navegador
+            headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'}
+            response = requests.get(url, headers=headers, stream=True)
+            response.raise_for_status()
+
+            # Detectar si es ZIP por extensión o header
+            if url.endswith('.zip') or 'zip' in response.headers.get('Content-Type', ''):
+                with zipfile.ZipFile(io.BytesIO(response.content)) as z:
+                    # Buscamos el primer CSV dentro del zip
+                    csv_files = [f for f in z.namelist() if f.endswith('.csv')]
+                    if not csv_files:
+                         self.stdout.write(self.style.ERROR("❌ El ZIP no contiene archivos CSV."))
+                         return None
+                    
+                    csv_filename = csv_files[0]
+                    self.stdout.write(f"📦 Descomprimiendo: {csv_filename}")
+                    with z.open(csv_filename) as f:
+                        return f.read().decode('utf-8')
+            else:
+                return response.content.decode('utf-8')
+        except Exception as e:
+            self.stdout.write(self.style.ERROR(f"Error descargando: {e}"))
+            return None
+
+    def _process_csv(self, content_text):
+        # Limpiar BOM si existe
+        if content_text.startswith('\ufeff'):
+            content_text = content_text[1:]
+
+        csv_reader = csv.DictReader(io.StringIO(content_text))
+        buffer = []
+        total_created = 0
+        batch_size = 5000
+
+        self.stdout.write("💾  Insertando registros en la DB (esto tomará unos segundos)...")
+
+        # Mapeo de columnas (Google a veces usa nombres diferentes)
+        # Estandar: Criteria ID, Name, Canonical Name, Parent ID, Country Code, Target Type, Status
+        
+        for row in csv_reader:
+            try:
+                # Validamos que sea un Target activo o relevante
+                if row.get('Status') == 'Removal':
+                    continue 
+
+                loc = GoogleAdsLocation(
+                    criteria_id=int(row['Criteria ID']),
+                    name=row['Name'],
+                    canonical_name=row['Canonical Name'],
+                    parent_id=int(row['Parent ID']) if row.get('Parent ID') else None,
+                    country_code=row['Country Code'],
+                    target_type=row['Target Type'],
+                    status=row['Status']
+                )
+                buffer.append(loc)
+            except (KeyError, ValueError):
+                continue
+
+            if len(buffer) >= batch_size:
+                GoogleAdsLocation.objects.bulk_create(buffer, ignore_conflicts=True)
+                total_created += len(buffer)
+                sys.stdout.write(f"\r   ... procesados: {total_created}")
+                sys.stdout.flush()
+                buffer = []
+
+        if buffer:
+            GoogleAdsLocation.objects.bulk_create(buffer, ignore_conflicts=True)
+        
+        self.stdout.write("\n")
+        self.stdout.write(self.style.SUCCESS(f"✅ ¡LISTO! {total_created + len(buffer)} ubicaciones importadas."))
+```
+
+---
+
 ## `keyword_research\migrations\0001_initial.py`
 
 ```python
@@ -1440,6 +1647,73 @@ class Migration(migrations.Migration):
 
 ---
 
+## `keyword_research\migrations\0006_googleadslocation.py`
+
+```python
+# Generated by Django 5.2.10 on 2026-01-15 20:18
+
+from django.db import migrations, models
+
+
+class Migration(migrations.Migration):
+
+    dependencies = [
+        ('keyword_research', '0005_keywordstrategy_strategyitem'),
+    ]
+
+    operations = [
+        migrations.CreateModel(
+            name='GoogleAdsLocation',
+            fields=[
+                ('criteria_id', models.BigIntegerField(help_text='Google GeoTarget ID', primary_key=True, serialize=False)),
+                ('name', models.CharField(db_index=True, max_length=255)),
+                ('canonical_name', models.CharField(db_index=True, max_length=500)),
+                ('parent_id', models.BigIntegerField(blank=True, null=True)),
+                ('country_code', models.CharField(db_index=True, max_length=10)),
+                ('target_type', models.CharField(max_length=100)),
+                ('status', models.CharField(max_length=50)),
+            ],
+            options={
+                'verbose_name': 'Google Ads Location',
+                'ordering': ['name'],
+            },
+        ),
+    ]
+```
+
+---
+
+## `keyword_research\migrations\0007_googleadslanguage.py`
+
+```python
+# Generated by Django 5.2.10 on 2026-01-15 20:41
+
+from django.db import migrations, models
+
+
+class Migration(migrations.Migration):
+
+    dependencies = [
+        ('keyword_research', '0006_googleadslocation'),
+    ]
+
+    operations = [
+        migrations.CreateModel(
+            name='GoogleAdsLanguage',
+            fields=[
+                ('criteria_id', models.BigIntegerField(primary_key=True, serialize=False)),
+                ('name', models.CharField(max_length=100)),
+                ('code', models.CharField(help_text='ISO Code (en, es, fr)', max_length=10)),
+            ],
+            options={
+                'ordering': ['name'],
+            },
+        ),
+    ]
+```
+
+---
+
 ## `keyword_research\migrations\__init__.py`
 
 ```python
@@ -1505,6 +1779,46 @@ class StrategyItem(models.Model):
     volume = models.IntegerField(default=0)
     intent = models.CharField(max_length=50, blank=True)
     priority = models.IntegerField(default=3) # 1: Alta, 2: Media, 3: Baja
+
+# keyword_research/models.py
+
+class GoogleAdsLocation(models.Model):
+    """
+    Tabla Maestra oficial de Geotargets de Google Ads.
+    Fuente: https://developers.google.com/google-ads/api/data/geotargets
+    """
+    # El ID oficial de Google (ej: 2840 para US, 1014986 para Charlotte)
+    criteria_id = models.BigIntegerField(primary_key=True, help_text="Google GeoTarget ID")
+    
+    # Datos descriptivos
+    name = models.CharField(max_length=255, db_index=True)  # Indexado para búsqueda rápida
+    canonical_name = models.CharField(max_length=500, db_index=True) # Indexado para el autocomplete
+    parent_id = models.BigIntegerField(null=True, blank=True)
+    country_code = models.CharField(max_length=10, db_index=True)
+    target_type = models.CharField(max_length=100) # City, State, Country, etc.
+    status = models.CharField(max_length=50) # Active/Removal
+
+    def __str__(self):
+        return f"{self.canonical_name} ({self.criteria_id})"
+
+    class Meta:
+        verbose_name = "Google Ads Location"
+        ordering = ['name']
+
+class GoogleAdsLanguage(models.Model):
+    """
+    Códigos de idioma oficiales de Google Ads.
+    Ej: 1000 = English, 1003 = Spanish
+    """
+    criteria_id = models.BigIntegerField(primary_key=True)
+    name = models.CharField(max_length=100)
+    code = models.CharField(max_length=10, help_text="ISO Code (en, es, fr)")
+
+    def __str__(self):
+        return f"{self.name} ({self.code})"
+
+    class Meta:
+        ordering = ['name']
 ```
 
 ---
@@ -2007,15 +2321,20 @@ from . import views
 app_name = 'keyword_research'
 
 urlpatterns = [
-    # Dashboard principal de la app (Resumen de Runs de keywords)
-# Esta es la que llamaremos desde la sidebar
+# --- Vistas Principales ---
     path('magic/', views.KeywordMagicHomeView.as_view(), name='magic_tool_home'),
-    
-    # 2. Los resultados (La tabla mágica)
     path('magic/<int:pk>/', views.MagicToolView.as_view(), name='magic_tool'),
+    
+    # --- APIs Internas (AJAX) ---
     path('api/discover/', views.KeywordDiscoveryAjaxView.as_view(), name='api_discover'),
     path('api/save-keywords/', views.SaveKeywordsAjaxView.as_view(), name='save_keywords'),
-    path('api/geo-search/', views.GeoSearchAjaxView.as_view(), name='geo_search'),
+    
+    # 🔥 ELIMINADO: path('api/geo-search/', views.GeoSearchAjaxView.as_view(), name='geo_search'),
+    # Esta era la versión vieja. La reemplazamos por las dos de abajo:
+    
+    path('api/locations-search/', views.LocationAutocompleteView.as_view(), name='location_search'),
+    path('api/languages-search/', views.LanguageAutocompleteView.as_view(), name='language_search'),
+    path('api/geo-proxy/', views.GeoProxyView.as_view(), name='geo_proxy'),
 ]
 ```
 
@@ -2025,12 +2344,18 @@ urlpatterns = [
 
 ```python
 import json
+import requests
 from django.views.generic import TemplateView, View
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib import messages
 from django.shortcuts import redirect, get_object_or_404
 from django.urls import reverse
 from django.http import JsonResponse
+from django.core.cache import cache
+from django.db.models import Q
+from django.core.cache import cache # <--- Importante para Zero-Cost
+from django.utils.decorators import method_decorator
+from django.views.decorators.cache import cache_page
 from django_countries import countries
 from .services.ads_import import import_google_ads_csv  
 from .services.orchestrator import KeywordDiscoveryService
@@ -2039,26 +2364,84 @@ from .services.clustering import KeywordClusteringService
 from .services.close_variants import CloseVariantsService
 from .models import KeywordIdea
 from projects.models import Project
-from .services.geo_service import GeoLocationService
 from core.models import Run
+from .models import GoogleAdsLocation,GoogleAdsLanguage
 
-class GeoSearchAjaxView(LoginRequiredMixin, View):
+class GeoProxyView(LoginRequiredMixin, View):
     """
-    Autocomplete de ciudades y estados para el mapa.
+    Proxy para evitar CORS y cachear peticiones a OpenStreetMap (Nominatim).
+    Frontend -> Django -> OSM
     """
-    def get(self, request, *args, **kwargs):
+    def get(self, request):
         query = request.GET.get('q', '').strip()
-        country_code = request.GET.get('country_code', 'US')
-        project_id = request.GET.get('project_id')
-        # Podríamos sacar el country_code del proyecto si quisiéramos ser más estrictos
-
- 
-        
-        if len(query) < 3:
+        if not query:
             return JsonResponse([], safe=False)
 
-        locations = GeoLocationService.search_locations(query, country_code=country_code)
-        return JsonResponse(locations, safe=False)
+        # 1. Zero-Cost: Verificar Caché primero (30 días)
+        cache_key = f"geo_osm_{query.lower().replace(' ', '_')}"
+        cached_data = cache.get(cache_key)
+
+        if cached_data:
+            print(f"⚡ Serving from Cache: {query}")
+            return JsonResponse(cached_data, safe=False)
+
+        # 2. Llamada a OSM (Server-to-Server)
+        url = "https://nominatim.openstreetmap.org/search"
+        params = {
+            'q': query,
+            'format': 'json',
+            'limit': 1,
+            'addressdetails': 1
+        }
+        headers = {
+            'User-Agent': 'SEOSuite-SaaS/1.0 (dev-testing)' # Necesario para no ser bloqueado
+        }
+
+        try:
+            print(f"🌍 Fetching form OSM: {query}")
+            response = requests.get(url, params=params, headers=headers, timeout=5)
+            response.raise_for_status()
+            data = response.json()
+
+            # 3. Guardar en Caché
+            if data:
+                cache.set(cache_key, data, timeout=60*60*24*30)
+
+            return JsonResponse(data, safe=False)
+
+        except Exception as e:
+            print(f"❌ Error en GeoProxy: {e}")
+            return JsonResponse([], safe=False)
+# --- VISTAS DE AUTOCOMPLETE (NUEVAS) ---
+class LanguageAutocompleteView(LoginRequiredMixin, View):
+    """ Busca en la DB de GoogleAdsLanguage para Select2 """
+    def get(self, request):
+        query = request.GET.get('q', '').strip()
+        if not query:
+            langs = GoogleAdsLanguage.objects.filter(code__in=['en', 'es', 'fr', 'de', 'pt'])
+        else:
+            langs = GoogleAdsLanguage.objects.filter(
+                Q(name__icontains=query) | Q(code__icontains=query)
+            )[:20]
+        results = [{'id': l.criteria_id, 'text': l.name} for l in langs]
+        return JsonResponse({'results': results})
+    
+class LocationAutocompleteView(LoginRequiredMixin, View):
+    """ Busca en la DB de GoogleAdsLocation para Select2 """
+    def get(self, request):
+        query = request.GET.get('q', '').strip()
+        if len(query) < 2:
+            return JsonResponse({'results': []})
+        
+        locations = GoogleAdsLocation.objects.filter(
+            status='Active'
+        ).filter(
+            Q(canonical_name__icontains=query) | Q(name__icontains=query)
+        ).order_by('-target_type', 'name')[:30]
+
+        results = [{'id': l.criteria_id, 'text': f"{l.canonical_name} ({l.target_type})"} for l in locations]
+        return JsonResponse({'results': results})
+
 
 class SaveKeywordsAjaxView(LoginRequiredMixin, View):
     """Guarda o actualiza keywords seleccionadas desde la tabla API."""
@@ -2137,12 +2520,13 @@ class KeywordOverviewView(LoginRequiredMixin, TemplateView):
         return context
 
 class KeywordMagicHomeView(LoginRequiredMixin, TemplateView):
-    """Página de bienvenida con el buscador grande."""
-    template_name = 'keyword_research/keyword_search_home.html' # <--- Asegúrate de que este existe
+    template_name = "keyword_research/keyword_search_home.html"
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context['all_countries'] = countries # Necesario para el selector de país
+        project_id = self.request.GET.get('project')
+        if project_id:
+            context['project'] = get_object_or_404(Project, pk=project_id, user=self.request.user)
         return context
 class MagicToolView(LoginRequiredMixin, TemplateView):
     """
@@ -3643,7 +4027,8 @@ from django.shortcuts import render
     <link rel="stylesheet" href="{% static 'vendor/hando/libs/leaflet/leaflet.css' %}" />   
     <link href="{% static 'vendor/hando/libs/datatables.net-bs5/css/dataTables.bootstrap5.min.css' %}" rel="stylesheet" type="text/css" />
     <link href="{% static 'vendor/hando/libs/datatables.net-responsive-bs5/css/responsive.bootstrap5.min.css' %}" rel="stylesheet" type="text/css" />
-
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" />
     {% block extra_css %}{% endblock %}
 </head>
 ```
@@ -3877,6 +4262,8 @@ from django.shortcuts import render
 <script src="{% static 'vendor/hando/js/head.js' %}"></script>
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 ```
 
 ---
@@ -3994,21 +4381,29 @@ from django.shortcuts import render
                         </div>
 
                         <div class="col-lg-3 position-relative">
-                            <label class="form-label font-12 text-muted text-uppercase fw-bold">Ubicación (País/Ciudad)</label>
-                            <div class="input-group">
-                                <span class="input-group-text bg-light border-end-0"><i class="mdi mdi-map-marker"></i></span>
-                                <input type="text" id="geoInput" class="form-control border-start-0" placeholder="Escribe país o ciudad..." autocomplete="off">
-                                <input type="hidden" id="geoId" value="2724"> 
+                            <label class="form-label font-12 text-muted text-uppercase fw-bold">Target Location</label>
+                            <div class="mb-3">
+                                <select class="form-select" id="geo_target" name="location_id">
+                                    {% if current_location %}
+                                        <option value="{{ current_location.criteria_id }}" selected>
+                                            {{ current_location.canonical_name }}
+                                        </option>
+                                    {% endif %}
+                                </select>
+                                <div class="form-text text-muted">Escribe ciudad, estado o país (ej: "Madrid", "Miami").</div>
                             </div>
-                            <div id="geoSuggestions" class="list-group shadow-lg position-absolute w-100" style="z-index: 1000; display: none; top: 70px;"></div>
                         </div>
 
                         <div class="col-lg-2 position-relative">
                             <label class="form-label font-12 text-muted text-uppercase fw-bold">Idioma</label>
-                            <div class="input-group">
-                                <span class="input-group-text bg-light border-end-0"><i class="mdi mdi-translate"></i></span>
-                                <input type="text" id="langInput" class="form-control border-start-0" placeholder="Español" autocomplete="off" value="Español">
-                                <input type="hidden" id="langId" value="1014"> 
+                            <div class="mb-3">
+                                <select class="form-select" id="language_select" name="language_id">
+                                    {% if current_language %}
+                                        <option value="{{ current_language.criteria_id }}" selected>{{ current_language.name }}</option>
+                                    {% else %}
+                                        <option value="1000" selected>English</option>
+                                    {% endif %}
+                                </select>
                             </div>
                             <div id="langSuggestions" class="list-group shadow-lg position-absolute w-100" style="z-index: 1000; display: none; top: 70px;"></div>
                         </div>
@@ -4154,6 +4549,53 @@ from django.shortcuts import render
 <script>
     let apiTable;
     let savedTable;
+
+     // ... Configuración de Location que ya tenías ...
+
+    // Configuración de LANGUAGE
+    $('#language_select').select2({
+        theme: 'bootstrap-5',
+        width: '100%',
+        placeholder: 'Selecciona idioma...',
+        ajax: {
+            url: "{% url 'keyword_research:language_search' %}", // Ojo con el namespace si lo usas
+            dataType: 'json',
+            delay: 250,
+            data: function (params) {
+                return { q: params.term };
+            },
+            processResults: function (data) {
+                return { results: data.results };
+            },
+            cache: true
+        }
+    });   
+
+    $(document).ready(function() {
+        $('#geo_target').select2({
+            theme: 'bootstrap-5',
+            width: '100%',
+            placeholder: '🔍 Buscar ubicación (ej: New York)...',
+            allowClear: true,
+            minimumInputLength: 2, // Espera a que escriba 2 letras
+            ajax: {
+                url: "{% url 'keyword_research:location_search' %}", // La URL que creamos arriba
+                dataType: 'json',
+                delay: 300, // Debounce: Espera 300ms al dejar de escribir (ahorra peticiones)
+                data: function (params) {
+                    return {
+                        q: params.term // Envía lo que escribe el usuario como ?q=...
+                    };
+                },
+                processResults: function (data) {
+                    return {
+                        results: data.results // Mapea la respuesta JSON de Django
+                    };
+                },
+                cache: true
+            }
+        });
+    });
 
     $(document).ready(function() {
         apiTable = $('#datatable-api').DataTable({
@@ -4317,6 +4759,23 @@ from django.shortcuts import render
 {% load static %}
 
 {% block content %}
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" />
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+
+<style>
+    /* Aseguramos altura explícita y borde para ver si el contenedor existe */
+    #geo_preview_map {
+        height: 300px !important; /* Altura forzada */
+        width: 100%;
+        background-color: #f0f0f0; /* Fondo gris para ver si carga el div */
+        border: 2px solid #ccc;
+        border-radius: 8px;
+        margin-top: 15px;
+        display: none; /* Empieza oculto */
+    }
+</style>
+
 <div class="page-content">
     <div class="container-fluid">
 
@@ -4324,12 +4783,6 @@ from django.shortcuts import render
             <div class="col-12">
                 <div class="page-title-box">
                     <h4 class="page-title">Keyword Magic Tool</h4>
-                    <div class="page-title-right">
-                        <ol class="breadcrumb m-0">
-                            <li class="breadcrumb-item"><a href="javascript: void(0);">SEO Suite</a></li>
-                            <li class="breadcrumb-item active">Investigación</li>
-                        </ol>
-                    </div>
                 </div>
             </div>
         </div>
@@ -4340,56 +4793,46 @@ from django.shortcuts import render
                     <div class="card-header bg-white py-3">
                         <h5 class="card-title mb-0">
                             <i class="mdi mdi-filter-variant me-1 text-primary"></i> 
-                            Configuración de Análisis para: <span class="text-primary">{{ project.name }}</span>
+                            Configuración: <span class="text-primary">{{ project.name }}</span>
                         </h5>
                     </div>
                     <div class="card-body p-4">
-                        <form action="{% url 'keyword_research:magic_tool_home' %}" method="GET">
+                        
+                        <form action="{% url 'keyword_research:magic_tool_home' %}" method="GET" id="magic-form">
                            <input type="hidden" name="project" value="{{ project.id }}">
-                             <div class="row g-4">
-                                <div class="col-12">
-                                    <label class="form-label fw-bold small text-uppercase">Palabra Clave Semilla</label>
-                                    <div class="input-group input-group-lg">
-                                        <span class="input-group-text bg-light"><i class="mdi mdi-magnify"></i></span>
-                                        <input type="text" name="q" class="form-control" placeholder="Ej: videographer, real estate, pizza..." required>
-                                    </div>
-                                    <div class="form-text mt-2 italic text-muted">Ingresa un término base para generar cientos de variaciones.</div>
+                           
+                           <div class="mb-4">
+                                <label class="form-label fw-bold">Palabra Clave Semilla</label>
+                                <div class="input-group input-group-lg">
+                                    <span class="input-group-text bg-light"><i class="mdi mdi-magnify"></i></span>
+                                    <input type="text" name="seed" class="form-control" placeholder="Ej: seguros de auto..." required>
                                 </div>
+                           </div>
 
+                            <div class="row g-3">
                                 <div class="col-md-6">
-                                    <label class="form-label fw-bold small text-uppercase">País de Búsqueda</label>
-                                    <select name="location_country" class="form-select">
-                                        {% for code, name in all_countries %}
-                                            <option value="{{ code }}" {% if project.target_country_code == code %}selected{% endif %}>
-                                                {{ name }}
-                                            </option>
-                                        {% endfor %}
+                                    <label class="form-label fw-bold">Idioma</label>
+                                    <select class="form-select" id="language_select" name="language_id">
+                                        <option value="1003" selected>Spanish</option>
                                     </select>
                                 </div>
 
                                 <div class="col-md-6">
-                                    <label class="form-label fw-bold small text-uppercase">Idioma de Resultados</label>
-                                    <select name="language" class="form-select">
-                                        <option value="en" {% if project.language_code|lower == 'en' %}selected{% endif %}>English</option>
-                                        <option value="es" {% if project.language_code|lower == 'es' %}selected{% endif %}>Español</option>
+                                    <label class="form-label fw-bold">Ubicación</label>
+                                    <select class="form-select" id="location_select" name="location_id">
                                     </select>
-                                </div>
-
-                                <div class="col-12">
-                                    <label class="form-label fw-bold small text-uppercase text-primary">Segmentación Local (Ciudad/Estado)</label>
-                                    <div class="input-group">
-                                        <span class="input-group-text bg-soft-primary"><i class="mdi mdi-map-marker text-primary"></i></span>
-                                        <input type="text" name="location_name" class="form-control" placeholder="Ej: Gastonia, NC">
-                                    </div>
-                                    <div class="form-text">Si dejas esto vacío, el análisis será a nivel nacional.</div>
                                 </div>
                             </div>
-
+                            <div class="row g-3">
+                                <div class="col-md-12">
+                                    <div id="geo_preview_map" class="google-maps"></div>
+                                </div>
+                            </div>
                             <hr class="my-4">
 
                             <div class="d-grid">
-                                <button type="submit" class="btn btn-primary btn-lg fw-bold shadow-sm py-3">
-                                    <i class="mdi mdi-rocket-launch me-2"></i> GENERAR IDEAS DE KEYWORDS
+                                <button type="submit" class="btn btn-primary btn-lg fw-bold py-3">
+                                    INICIAR INVESTIGACIÓN
                                 </button>
                             </div>
                         </form>
@@ -4397,9 +4840,111 @@ from django.shortcuts import render
                 </div>
             </div>
         </div>
-
     </div>
 </div>
+
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+
+<script>
+$(document).ready(function() {
+    console.log("🚀 Iniciando Script de Mapas (Modo Seguro)");
+
+    var map = null;
+    var marker = null;
+
+    // Función simple para inicializar mapa
+    function ensureMapCreated() {
+        if (map) return; 
+        
+        console.log("🗺️ Creando instancia de Leaflet...");
+        map = L.map('geo_preview_map').setView([0, 0], 2);
+        
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors'
+        }).addTo(map);
+    }
+
+    function updateMap(locationName) {
+        let cleanName = locationName.replace(/\(.*\)/, '').trim();
+        console.log("📍 Buscando:", cleanName);
+
+        // 1. Mostrar contenedor SIN animación (para evitar bugs de tamaño)
+        $('#geo_preview_map').css('display', 'block');
+        
+        // 2. Crear mapa
+        ensureMapCreated();
+
+        // 3. FIX CRÍTICO: Recalcular tamaño después de mostrar
+        setTimeout(function(){
+            map.invalidateSize();
+        }, 100);
+
+        // 4. Pedir datos al Proxy
+        $.ajax({
+            url: "{% url 'keyword_research:geo_proxy' %}",
+            data: { q: cleanName },
+            success: function(data) {
+                console.log("✅ Datos recibidos:", data);
+                if (data && data.length > 0) {
+                    let lat = data[0].lat;
+                    let lon = data[0].lon;
+                    let zoom = (data[0].type === 'country') ? 5 : 10;
+                    
+                    // Mover mapa
+                    map.setView([lat, lon], zoom); // setView es más robusto que flyTo al inicio
+
+                    if (marker) map.removeLayer(marker);
+                    marker = L.marker([lat, lon]).addTo(map)
+                        .bindPopup(`<b>${cleanName}</b>`)
+                        .openPopup();
+                }
+            },
+            error: function(err) {
+                console.error("❌ Error AJAX:", err);
+            }
+        });
+    }
+
+    // --- Configuración Select2 ---
+    $('#location_select').select2({
+        theme: 'bootstrap-5',
+        width: '100%',
+        placeholder: '🔍 Buscar ubicación...',
+        allowClear: true,
+        minimumInputLength: 2,
+        ajax: {
+            url: "{% url 'keyword_research:location_search' %}",
+            dataType: 'json',
+            delay: 300,
+            data: params => ({ q: params.term }),
+            processResults: data => ({ results: data.results })
+        }
+    });
+
+    $('#language_select').select2({
+        theme: 'bootstrap-5',
+        width: '100%',
+        ajax: {
+            url: "{% url 'keyword_research:language_search' %}",
+            dataType: 'json',
+            delay: 250,
+            data: params => ({ q: params.term }),
+            processResults: data => ({ results: data.results })
+        }
+    });
+
+    // --- Eventos ---
+    $('#location_select').on('select2:select', function (e) {
+        updateMap(e.params.data.text);
+    });
+
+    $('#location_select').on('select2:clear', function (e) {
+        $('#geo_preview_map').hide();
+    });
+});
+</script>
 {% endblock %}
 ```
 

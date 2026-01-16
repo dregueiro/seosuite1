@@ -4,18 +4,28 @@
 {% block content %}
 <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" />
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
 
 <style>
-    /* Aseguramos altura explícita y borde para ver si el contenedor existe */
-    #geo_preview_map {
-        height: 300px !important; /* Altura forzada */
-        width: 100%;
-        background-color: #f0f0f0; /* Fondo gris para ver si carga el div */
-        border: 2px solid #ccc;
-        border-radius: 8px;
-        margin-top: 15px;
-        display: none; /* Empieza oculto */
+    .search-card {
+        border-radius: 15px;
+        box-shadow: 0 10px 25px rgba(0,0,0,0.05);
+        border: none;
+    }
+    .input-group-lg .form-control {
+        border-radius: 8px 0 0 8px;
+    }
+    .input-group-lg .input-group-text {
+        border-radius: 8px 0 0 8px;
+    }
+    .financial-box {
+        background: #f8f9fa;
+        border-radius: 12px;
+        border-left: 5px solid #0ab39c; /* Color verde de éxito */
+    }
+    .select2-container--bootstrap-5 .select2-selection {
+        height: calc(3.5rem + 2px);
+        padding: 0.75rem 0.75rem;
+        font-size: 1rem;
     }
 </style>
 
@@ -24,58 +34,79 @@
 
         <div class="row">
             <div class="col-12">
-                <div class="page-title-box">
-                    <h4 class="page-title">Keyword Magic Tool</h4>
+                <div class="page-title-box d-flex align-items-center justify-content-between">
+                    <h4 class="mb-0">Keyword Magic Tool</h4>
+                    <div class="page-title-right">
+                        <ol class="breadcrumb m-0">
+                            <li class="breadcrumb-item"><a href="javascript: void(0);">SEO Tools</a></li>
+                            <li class="breadcrumb-item active">Keyword Research</li>
+                        </ol>
+                    </div>
                 </div>
             </div>
         </div>
 
-        <div class="row justify-content-center">
-            <div class="col-xl-8 col-lg-10">
-                <div class="card shadow-sm border-0">
-                    <div class="card-header bg-white py-3">
-                        <h5 class="card-title mb-0">
-                            <i class="mdi mdi-filter-variant me-1 text-primary"></i> 
-                            Configuración: <span class="text-primary">{{ project.name }}</span>
-                        </h5>
-                    </div>
-                    <div class="card-body p-4">
-                        
-                        <form action="{% url 'keyword_research:magic_tool_home' %}" method="GET" id="magic-form">
-                           <input type="hidden" name="project" value="{{ project.id }}">
-                           
-                           <div class="mb-4">
-                                <label class="form-label fw-bold">Palabra Clave Semilla</label>
+        <div class="row justify-content-center mt-4">
+            <div class="col-xl-8">
+                <div class="card search-card">
+                    <div class="card-body p-5">
+                        <div class="text-center mb-4">
+                            <h3 class="fw-bold">Descubre nuevas oportunidades</h3>
+                            <p class="text-muted">Analiza palabras clave semilla para obtener volúmenes de búsqueda, CPC y dificultad real.</p>
+                        </div>
+
+                        <form method="POST" action="{% url 'keyword_research:magic_tool_home' %}" id="magic-search-form">
+                            {% csrf_token %}
+                            
+                            <input type="hidden" name="project" value="{{ project.id }}">
+
+                            <div class="mb-4">
+                                <label class="form-label fw-bold text-uppercase small">Palabra Clave Semilla</label>
                                 <div class="input-group input-group-lg">
-                                    <span class="input-group-text bg-light"><i class="mdi mdi-magnify"></i></span>
-                                    <input type="text" name="seed" class="form-control" placeholder="Ej: seguros de auto..." required>
+                                    <span class="input-group-text bg-light border-end-0"><i class="mdi mdi-magnify text-primary"></i></span>
+                                    <input type="text" name="seed" class="form-control border-start-0 shadow-none" 
+                                           placeholder="Ej: seguro de auto, comprar iphone..." required>
                                 </div>
-                           </div>
+                            </div>
 
-                            <div class="row g-3">
+                            <div class="row g-4 mb-4">
                                 <div class="col-md-6">
-                                    <label class="form-label fw-bold">Idioma</label>
-                                    <select class="form-select" id="language_select" name="language_id">
+                                    <label class="form-label fw-bold text-uppercase small">País / Ubicación</label>
+                                    <select name="location_id" id="location_select" class="form-select">
+                                        <option value="2840" selected>United States (Country)</option>
+                                        <option value="2724">Spain (Country)</option>
+                                        <option value="2484">Mexico (Country)</option>
+                                        <option value="2170">Colombia (Country)</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label fw-bold text-uppercase small">Idioma</label>
+                                    <select name="language_id" id="language_select" class="form-select">
                                         <option value="1003" selected>Spanish</option>
+                                        <option value="1000">English</option>
                                     </select>
                                 </div>
+                            </div>
 
-                                <div class="col-md-6">
-                                    <label class="form-label fw-bold">Ubicación</label>
-                                    <select class="form-select" id="location_select" name="location_id">
-                                    </select>
+                            <div class="financial-box p-3 mb-4">
+                                <div class="row align-items-center">
+                                    <div class="col-md-7 border-end">
+                                        <p class="mb-1 text-muted small fw-bold text-uppercase">Presupuesto del Proyecto: <span class="text-primary">{{ project.name }}</span></p>
+                                        <h4 class="mb-0 text-dark fw-bold">${{ project.authorized_monthly_budget|default:"0.00" }} <span class="badge bg-soft-success text-success fs-12 ms-2">Disponible</span></h4>
+                                    </div>
+                                    <div class="col-md-5 ps-4">
+                                        <label class="form-label small fw-bold text-uppercase text-muted mb-1">Modo de consulta</label>
+                                        <select name="search_mode" class="form-select form-select-sm border-0 bg-transparent fw-bold shadow-none p-0">
+                                            <option value="live">⚡ DataForSEO Labs (Live)</option>
+                                            <option value="database">📚 Database (Histórico)</option>
+                                        </select>
+                                    </div>
                                 </div>
                             </div>
-                            <div class="row g-3">
-                                <div class="col-md-12">
-                                    <div id="geo_preview_map" class="google-maps"></div>
-                                </div>
-                            </div>
-                            <hr class="my-4">
 
                             <div class="d-grid">
-                                <button type="submit" class="btn btn-primary btn-lg fw-bold py-3">
-                                    INICIAR INVESTIGACIÓN
+                                <button type="submit" id="btn-submit" class="btn btn-primary btn-lg fw-bold py-3 shadow">
+                                    <i class="mdi mdi-rocket-launch me-1"></i> INICIAR INVESTIGACIÓN PROFESIONAL
                                 </button>
                             </div>
                         </form>
@@ -88,103 +119,35 @@
 
 <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 
 <script>
 $(document).ready(function() {
-    console.log("🚀 Iniciando Script de Mapas (Modo Seguro)");
+    // 1. Inicializar Select2 con el tema Bootstrap 5
+    $('#location_select, #language_select').select2({
+        theme: 'bootstrap-5',
+        width: '100%'
+    });
 
-    var map = null;
-    var marker = null;
-
-    // Función simple para inicializar mapa
-    function ensureMapCreated() {
-        if (map) return; 
-        
-        console.log("🗺️ Creando instancia de Leaflet...");
-        map = L.map('geo_preview_map').setView([0, 0], 2);
-        
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '© OpenStreetMap contributors'
-        }).addTo(map);
-    }
-
-    function updateMap(locationName) {
-        let cleanName = locationName.replace(/\(.*\)/, '').trim();
-        console.log("📍 Buscando:", cleanName);
-
-        // 1. Mostrar contenedor SIN animación (para evitar bugs de tamaño)
-        $('#geo_preview_map').css('display', 'block');
-        
-        // 2. Crear mapa
-        ensureMapCreated();
-
-        // 3. FIX CRÍTICO: Recalcular tamaño después de mostrar
-        setTimeout(function(){
-            map.invalidateSize();
-        }, 100);
-
-        // 4. Pedir datos al Proxy
-        $.ajax({
-            url: "{% url 'keyword_research:geo_proxy' %}",
-            data: { q: cleanName },
-            success: function(data) {
-                console.log("✅ Datos recibidos:", data);
-                if (data && data.length > 0) {
-                    let lat = data[0].lat;
-                    let lon = data[0].lon;
-                    let zoom = (data[0].type === 'country') ? 5 : 10;
-                    
-                    // Mover mapa
-                    map.setView([lat, lon], zoom); // setView es más robusto que flyTo al inicio
-
-                    if (marker) map.removeLayer(marker);
-                    marker = L.marker([lat, lon]).addTo(map)
-                        .bindPopup(`<b>${cleanName}</b>`)
-                        .openPopup();
-                }
-            },
-            error: function(err) {
-                console.error("❌ Error AJAX:", err);
-            }
-        });
-    }
-
-    // --- Configuración Select2 ---
+    // 2. Autocomplete de Ubicación vía AJAX (Opcional, pero recomendado)
     $('#location_select').select2({
         theme: 'bootstrap-5',
-        width: '100%',
-        placeholder: '🔍 Buscar ubicación...',
-        allowClear: true,
-        minimumInputLength: 2,
         ajax: {
             url: "{% url 'keyword_research:location_search' %}",
             dataType: 'json',
             delay: 300,
             data: params => ({ q: params.term }),
             processResults: data => ({ results: data.results })
-        }
+        },
+        minimumInputLength: 2,
+        placeholder: "🔍 Busca país o ciudad..."
     });
 
-    $('#language_select').select2({
-        theme: 'bootstrap-5',
-        width: '100%',
-        ajax: {
-            url: "{% url 'keyword_research:language_search' %}",
-            dataType: 'json',
-            delay: 250,
-            data: params => ({ q: params.term }),
-            processResults: data => ({ results: data.results })
-        }
-    });
-
-    // --- Eventos ---
-    $('#location_select').on('select2:select', function (e) {
-        updateMap(e.params.data.text);
-    });
-
-    $('#location_select').on('select2:clear', function (e) {
-        $('#geo_preview_map').hide();
+    // 3. Manejo de estado del botón al enviar
+    $('#magic-search-form').on('submit', function() {
+        const $btn = $('#btn-submit');
+        $btn.prop('disabled', true);
+        $btn.html('<span class="spinner-border spinner-border-sm me-2"></span> PROCESANDO DATOS DE API...');
+        // El formulario se enviará de forma natural
     });
 });
 </script>

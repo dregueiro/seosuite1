@@ -101,7 +101,7 @@
                     </div>
 
                     <div class="d-grid gap-2">
-                        <a href="{% url 'keyword_research:magic_tool' project.pk %}" class="btn btn-primary btn-sm waves-effect waves-light">
+                        <a href="{% url 'keyword_research:magic_tool_home' %}?project={{ project.pk }}" class="btn btn-primary btn-sm waves-effect waves-light">
                             <i class="fe-zap me-1"></i> Ir al Magic Tool
                         </a>
                         <a href="{% url 'seo:project_dashboard' project.pk %}" class="btn btn-soft-secondary btn-sm waves-effect">

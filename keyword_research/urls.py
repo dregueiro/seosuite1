@@ -6,7 +6,7 @@ app_name = 'keyword_research'
 urlpatterns = [
 # --- Vistas Principales ---
     path('magic/', views.KeywordMagicHomeView.as_view(), name='magic_tool_home'),
-    path('magic/<int:pk>/', views.MagicToolView.as_view(), name='magic_tool'),
+    path('magic/<uuid:pk>/', views.MagicToolView.as_view(), name='magic_tool'),
     
     # --- APIs Internas (AJAX) ---
     path('api/discover/', views.KeywordDiscoveryAjaxView.as_view(), name='api_discover'),

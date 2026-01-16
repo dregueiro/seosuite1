@@ -1,5 +1,6 @@
 import json
 import requests
+from .models import KeywordIdea
 from django.views.generic import TemplateView, View
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib import messages
@@ -9,14 +10,12 @@ from django.http import JsonResponse
 from django.core.cache import cache
 from django.db.models import Q
 from django.core.cache import cache # <--- Importante para Zero-Cost
-from django.utils.decorators import method_decorator
-from django.views.decorators.cache import cache_page
 from django_countries import countries
+
 from .services.ads_import import import_google_ads_csv  
 from .services.orchestrator import KeywordDiscoveryService
 from .services.intent_resolver import IntentResolver
 from .services.clustering import KeywordClusteringService
-from .services.close_variants import CloseVariantsService
 from .models import KeywordIdea
 from projects.models import Project
 from core.models import Run
@@ -174,59 +173,187 @@ class KeywordOverviewView(LoginRequiredMixin, TemplateView):
         context['last_runs'] = [] 
         return context
 
+
+
 class KeywordMagicHomeView(LoginRequiredMixin, TemplateView):
     template_name = "keyword_research/keyword_search_home.html"
+    
+    # Variable de clase para guardar el proyecto temporalmente durante la petición
+    current_project = None 
+
+    def dispatch(self, request, *args, **kwargs):
+        """
+        Lógica de "Contexto de Proyecto":
+        1. ¿Viene 'project_id' en la URL? -> Úsalo y guárdalo en sesión.
+        2. ¿No viene en URL? -> Busca 'active_project_id' en la sesión.
+        3. ¿No hay nada? -> Redirige a la lista de proyectos para que elija uno.
+        """
+        if not request.user.is_authenticated:
+            return self.handle_no_permission()
+            
+        user = request.user
+        project_id = request.GET.get('project')
+
+        # CASO A: Navegación explícita (URL trae ?project=123)
+        if project_id:
+            # Validamos que el proyecto exista y sea del usuario
+            # Nota: Si aquí alguien pone ?project=texto_raro, Django lo maneja mejor, 
+            # pero podrías poner un try/except aquí también si quieres ser ultra-seguro.
+            try:
+                project = Project.objects.filter(id=project_id, client__user=request.user).first()
+                if project:
+                    # ¡Éxito! Guardamos en la memoria del navegador (Sesión)
+                    request.session['active_project_id'] = str(project.id)
+                    self.current_project = project
+                else:
+                    messages.error(request, "El proyecto solicitado no existe o no tienes permiso.")
+                    return redirect('projects:list')
+            except ValueError:
+                # Si alguien pone ?project=basura en la URL
+                messages.error(request, "ID de proyecto inválido.")
+                return redirect('projects:list')
+
+        # CASO B: Navegación desde Sidebar (Sin parámetros, usamos memoria)
+        else:
+            session_project_id = request.session.get('active_project_id')
+            
+            if session_project_id:
+                try:
+                    # 🛡️ BLINDAJE CONTRA EL ERROR DE UUID 🛡️
+                    # Intentamos buscar el proyecto.
+                    # Si session_project_id es un UUID 'd6ee...' y la DB espera un número (1, 2...),
+                    # esto lanzará ValueError. Lo capturamos abajo.
+                    project = Project.objects.filter(id=session_project_id, client__user=user).first()
+                    
+                    if project:
+                        self.current_project = project
+                    else:
+                        # El ID tenía formato correcto (número), pero el proyecto ya no existe
+                        request.session.pop('active_project_id', None)
+                        
+                except ValueError:
+                    # 🚨 AQUÍ CAPTURAMOS TU ERROR ACTUAL
+                    # La sesión tenía un UUID o basura. La limpiamos silenciosamente.
+                    # Al hacer self.current_project = None, caerá en el CASO C y redirigirá.
+                    request.session.pop('active_project_id', None)
+                    pass
+            
+        # CASO C: Usuario nuevo o sesión expirada/inválida (Sin contexto)
+        if not self.current_project:
+            # Opcional: Solo mostrar el mensaje si no venía de un error forzado
+            # messages.warning(request, "⚠️ Por favor, selecciona un proyecto para comenzar.")
+            return redirect('projects:list')
+
+        # Si llegamos aquí, self.current_project tiene un proyecto válido. Continuamos.
+        return super().dispatch(request, *args, **kwargs)
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        project_id = self.request.GET.get('project')
-        if project_id:
-            context['project'] = get_object_or_404(Project, pk=project_id, user=self.request.user)
+        # Pasamos el proyecto validado al Template
+        context['project'] = self.current_project
         return context
+    
+    def post(self, request, *args, **kwargs):
+  
+        # Impresión ultra-visible en terminal
+        print("\n\033[94m" + "!"*60)
+        print("🔥 RECIBIDO POST: INVESTIGACIÓN INICIADA 🔥")
+        print(f"PALABRA: {request.POST.get('seed')} | MODO: {request.POST.get('search_mode')}")
+        print("!"*60 + "\033[0m\n")
+    
+    # ... resto del código que llama al orquestador
+        project_id = request.POST.get('project')
+        seed = request.POST.get('seed')
+        language_id = request.POST.get('language_id')
+        location_id = request.POST.get('location_id')
+        search_mode = request.POST.get('search_mode', 'live') # Recibimos el modo (live/database)
+        if not seed:
+            messages.error(request, "Falta la palabra clave.")
+            return redirect(request.path)
+
+        # Llamar al orquestador
+        try:
+            from .services.orchestrator import KeywordDiscoveryService
+            
+            run = KeywordDiscoveryService.discover_keywords(
+                project_id=project_id,
+                seed=seed,
+                language_id=language_id,
+                location_id=location_id,
+                user=request.user,
+                mode=search_mode
+            )
+            messages.success(request, f"¡Análisis completado! {run.outputs.get('count',0)} keywords.")
+            return redirect('keyword_research:magic_tool', pk=run.id)
+            
+        except Exception as e:
+            # AGREGA ESTE PRINT PARA VER EL ERROR EN LA CONSOLA NEGRA
+            import traceback
+            print("🔥🔥🔥 ERROR FATAL EN POST 🔥🔥🔥")
+            print(e)
+            print(traceback.format_exc())
+            print("🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥")
+            
+            messages.error(request, f"Error iniciando investigación: {str(e)}")
+            messages.error(request, f"Error: {e}")
+            return redirect(request.path)
+
+# Asegúrate de tener estos imports arriba
+
+
 class MagicToolView(LoginRequiredMixin, TemplateView):
     """
-    Vista principal estilo Semrush (Hando HRM Layout).
-    Maneja la visualización y la importación de CSV.
+    Vista de RESULTADOS de una búsqueda específica (Run).
+    Recibe el ID del Run (pk), no del Proyecto.
     """
     template_name = 'keyword_research/keyword_magic.html'
 
-    def post(self, request, *args, **kwargs):
-        """Procesa la subida de archivos CSV de Google Ads."""
-        project = get_object_or_404(Project, pk=self.kwargs.get('pk'))
-        csv_file = request.FILES.get('csv_file')
-        
-        if not csv_file:
-            messages.error(request, "Error: No se seleccionó ningún archivo.")
-            return redirect('keyword_research:magic_tool', pk=project.pk)
-            
-        success, message = import_google_ads_csv(project, csv_file)
-        if success:
-            messages.success(request, message)
-        else:
-            messages.error(request, message)
-            
-        return redirect('keyword_research:magic_tool', pk=project.pk)
-
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        project = get_object_or_404(Project, pk=self.kwargs.get('pk'))
         
-        # Filtro de búsqueda para la base de datos local
+        # 1. Capturamos el ID de la URL (Ahora representa un RUN, no un Proyecto)
+        run_id = self.kwargs.get('pk')
+        
+        # 2. Buscamos el Run (y verificamos seguridad)
+        run = get_object_or_404(Run, pk=run_id, user=self.request.user)
+        # 3. Recuperamos el Proyecto a través del Run
+        project = run.project
+        # --- FIX PARA EL ERROR UUID ---
+        # Convertimos el ID a string explícitamente para evitar problemas de serialización
+        context['run_id_str'] = str(run.id)
+
+
+        # ✅ MEJORA UX: Actualizamos la sesión de forma SEGURA
+        # Así el sidebar sabrá qué proyecto resaltar, pero usando str() para no romper nada.
+        self.request.session['active_project_id'] = str(project.id)
+        self.request.session['active_project_name'] = project.name
+        # 4. Buscamos SOLO las keywords generadas en ESTA búsqueda
+        # Esto es vital: No mezclamos con keywords viejas o de CSVs anteriores
+        keywords = KeywordIdea.objects.filter(run=run).order_by('-avg_monthly_searches')
+
+        # --- Filtros Visuales (Opcional: Mantenemos tu lógica de 'q') ---
         query = self.request.GET.get('q', '')
-        keywords = KeywordIdea.objects.filter(project=project)
         if query:
             keywords = keywords.filter(keyword__icontains=query)
 
+        # 5. Pasamos todo al template
+        context['run_id_str'] = str(run.id)
+        context['run'] = run
         context['project'] = project
-        context['keywords'] = keywords
-        
-        # Historial de ejecuciones (Runs) para el Offcanvas 
+        context['keywords'] = KeywordIdea.objects.filter(run=run).order_by('-avg_monthly_searches')
+        # (Opcional) Si quieres mostrar historial en el sidebar, filtra por el proyecto del Run
         context['last_runs'] = Run.objects.filter(
             project=project, 
             kind__in=['keyword_discovery', 'keyword_import']
         ).order_by('-created_at')[:10]
         
-        return context    
+        return context
+
+    # NOTA DE ARQUITECTO:
+    # He eliminado el método POST (CSV Import) de esta vista específica.
+    # ¿Por qué? Porque esta URL ahora es /magic/<run_id>/ (para ver resultados).
+    # La importación de CSV debería hacerse en el Dashboard (/magic/) o en una vista dedicada,
+    # ya que al importar CSV creas un NUEVO Run, no modificas uno existente.
     
 class KeywordMagicView(LoginRequiredMixin, TemplateView):
     
