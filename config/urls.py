@@ -17,16 +17,28 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import path,include
 from django.contrib.auth import views as auth_views # Importamos las vistas de auth
+from django.views.generic import RedirectView # <--- IMPORTANTE: Importar esto
+from django.conf import settings
+from django.conf.urls.static import static
 
 urlpatterns = [
+    # --- RUTA RAÍZ (El Parche del 404) ---
+    path('', RedirectView.as_view(pattern_name='clients:list', permanent=False), name='home'),
     path('logout/', auth_views.LogoutView.as_view(), name='logout'),
     path('login/', auth_views.LoginView.as_view(template_name='registration/login.html'), name='login'),
     path('admin/', admin.site.urls),
-    path('seo/', include('seo.urls')), # Conectamos la app seo
+    path('seo/', include('seo.urls', namespace='seo')), # Conectamos la app seo
     path('keyword-research/', include('keyword_research.urls', namespace='keyword_research')),
     path('projects/', include('projects.urls', namespace='projects')),
     path('clients/', include('clients.urls', namespace='clients')),
     path('integrations/', include('integrations.urls', namespace='integrations')),
+    path('serp/', include('serp.urls', namespace='serp')),
+ 
 ]
 
-
+# Solo en desarrollo, forzamos el servicio de estáticos
+if settings.DEBUG:
+    urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
+    # También añadimos STATICFILES_DIRS por si acaso
+    from django.contrib.staticfiles.urls import staticfiles_urlpatterns
+    urlpatterns += staticfiles_urlpatterns()

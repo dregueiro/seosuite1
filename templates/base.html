@@ -1,61 +1,49 @@
-
+<!-- meta tags and other links -->
+ {% load static %}
 <!DOCTYPE html>
-{% load static %}
+<html lang="en" data-theme="light">
+
 {% include 'includes/head.html' %}
-    <!-- body start -->
-    <body data-menu-color="light" data-sidebar="default">
-
-        <!-- Begin page -->
-        <div id="app-layout">
-        {% include 'includes/topbar.html' %}
-
-        {% include 'includes/sidebar.html' %}
 
 
+<body class="dark:bg-neutral-800 bg-neutral-100 dark:text-white">
 
+    <!-- ..::  header area start ::.. -->
+    {% include 'includes/sidebar.html' %}
+    <!-- ..::  header area end ::.. -->
 
-            <!-- ============================================================== -->
-            <!-- Start Page Content here -->
-            <!-- ============================================================== -->
-         
-            <div class="content-page">
-                <div class="content">
+    <main class="dashboard-main">
 
-                    <!-- Start Content-->
-                    <div class="container-fluid">
-                    
-                        {% block content %}{% endblock %}
-
-                    </div> <!-- container-fluid -->
-                </div> <!-- content -->
-            </div>  
-                {% include 'includes/footer.html' %}
-
+        <!-- ..::  navbar start ::.. -->
+        {% include 'includes/navbar.html' %}
+        <!-- ..::  navbar end ::.. -->
+        <div class="dashboard-main-body">
             
-            <!-- ============================================================== -->
-            <!-- End Page content -->
-            <!-- ============================================================== -->
+            
+            {% block breadcrumb%}
+                <!-- ..::  breadcrumb  start ::.. -->
+                {% include 'includes/breadcrumb.html' %}
+                <!-- ..::  header area end ::.. -->
+            {% endblock %}
+            {% block content %}
 
-            {% include 'includes/vendor.html' %}
-        </div>
-        <!-- END wrapper -->
-
+            {% endblock content %} 
         
+        </div>
+        <!-- ..::  footer  start ::.. -->
+        {% include 'includes/footer.html' %}
+        <!-- ..::  footer area end ::.. -->
 
-        <!-- App js-->
-         
-        <script>
-            {% if messages %}
-                {% for message in messages %}
-                    Toast.fire({
-                        icon: '{{ message.tags }}', 
-                        title: '{{ message }}'
-                    });
-                {% endfor %}
-            {% endif %}
-            
-            // ELIMINA EL BLOQUE DE Swal.fire DE AQUÍ
-        </script>
-        {% block extra_js %} {% endblock %}
-    </body>
+    </main>
+
+    <!-- ..::  scripts  start ::.. -->
+    {% include 'includes/script.html' %}
+
+    {% block extra_js %}
+
+    {% endblock extra_js %}
+    <!-- ..::  scripts  end ::.. -->
+
+</body>
+
 </html>

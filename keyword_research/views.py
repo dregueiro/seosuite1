@@ -1,7 +1,6 @@
 import json
 import requests
-from .models import KeywordIdea
-from django.views.generic import TemplateView, View
+from django.views.generic import TemplateView, View, ListView
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib import messages
 from django.shortcuts import redirect, get_object_or_404
@@ -11,16 +10,86 @@ from django.core.cache import cache
 from django.db.models import Q
 from django.core.cache import cache # <--- Importante para Zero-Cost
 from django_countries import countries
+from django_tomselect.autocompletes import AutocompleteModelView
 
 from .services.ads_import import import_google_ads_csv  
 from .services.orchestrator import KeywordDiscoveryService
 from .services.intent_resolver import IntentResolver
 from .services.clustering import KeywordClusteringService
-from .models import KeywordIdea
-from projects.models import Project
+from .models import KeywordIdea, Keyword
+from projects.models import Project, GscRow
 from core.models import Run
 from .models import GoogleAdsLocation,GoogleAdsLanguage
+from .services.keyword_services import KeywordPromotionService
+from .services.intent_service import KeywordIntelligenceService
 
+class AddToProjectView(View):
+    def post(self, request, project_id, idea_id):
+        idea = KeywordIdea.objects.get(id=idea_id, project_id=project_id)
+        
+        # Resolvemos intención antes de guardar
+        intent = KeywordIntelligenceService.determine_intent(idea.keyword)
+        
+        # Guardamos en el modelo final (Dedupe automático por get_or_create)
+        kw_obj, created = Keyword.objects.get_or_create(
+            project_id=project_id,
+            normalized_name=idea.keyword.strip().lower(),
+            defaults={
+                'name': idea.keyword,
+                'volume': idea.avg_monthly_searches or 0,
+                'cpc': idea.cpc or 0,
+                'intent': intent
+            }
+        )
+        
+        if created:
+            messages.success(request, f"'{kw_obj.name}' añadida al proyecto.")
+        else:
+            messages.info(request, f"'{kw_obj.name}' ya estaba en seguimiento.")
+            
+        return redirect('keyword_research:keyword_magic', project_id=project_id)
+
+
+class PromoteKeywordsView(View):
+    """
+    CBV para procesar la selección masiva de la UI.
+    """
+    def post(self, request, project_id):
+        selected_keywords = request.POST.getlist('selected_keywords')
+        # Formateamos para el servicio (en el futuro esto vendría enriquecido)
+        keywords_data = [{'keyword': kw} for kw in selected_keywords]
+        
+        if not selected_keywords:
+            messages.warning(request, "No seleccionaste ninguna keyword.")
+            return redirect('keyword_research:magic_results', project_id=project_id)
+
+        service = KeywordPromotionService()
+        result = service.promote_to_project(project_id, keywords_data, request.user)
+        
+        messages.success(request, f"¡Éxito! Se añadieron {result['added_count']} keywords al proyecto.")
+        return redirect('projects:keyword_list', project_id=project_id)
+
+class ProjectHistoryView(LoginRequiredMixin, ListView):
+    model = Run
+    template_name = 'keyword_research/project_history.html'
+    context_object_name = 'runs'
+
+    def get_queryset(self):
+        # Recuperamos el proyecto de la sesión o de la URL
+        project_id = self.kwargs.get('project_id')
+        return Run.objects.filter(
+            project_id=project_id,
+            user=self.request.user,
+            status='SUCCESS'
+        ).order_by('-created_at')
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        # Pasamos el nombre del proyecto para el título
+        if self.object_list.exists():
+            context['project_name'] = self.object_list.first().project.name
+        return context
+    
 class GeoProxyView(LoginRequiredMixin, View):
     """
     Proxy para evitar CORS y cachear peticiones a OpenStreetMap (Nominatim).
@@ -67,34 +136,20 @@ class GeoProxyView(LoginRequiredMixin, View):
             print(f"❌ Error en GeoProxy: {e}")
             return JsonResponse([], safe=False)
 # --- VISTAS DE AUTOCOMPLETE (NUEVAS) ---
-class LanguageAutocompleteView(LoginRequiredMixin, View):
-    """ Busca en la DB de GoogleAdsLanguage para Select2 """
-    def get(self, request):
-        query = request.GET.get('q', '').strip()
-        if not query:
-            langs = GoogleAdsLanguage.objects.filter(code__in=['en', 'es', 'fr', 'de', 'pt'])
-        else:
-            langs = GoogleAdsLanguage.objects.filter(
-                Q(name__icontains=query) | Q(code__icontains=query)
-            )[:20]
-        results = [{'id': l.criteria_id, 'text': l.name} for l in langs]
-        return JsonResponse({'results': results})
-    
-class LocationAutocompleteView(LoginRequiredMixin, View):
-    """ Busca en la DB de GoogleAdsLocation para Select2 """
-    def get(self, request):
-        query = request.GET.get('q', '').strip()
-        if len(query) < 2:
-            return JsonResponse({'results': []})
-        
-        locations = GoogleAdsLocation.objects.filter(
-            status='Active'
-        ).filter(
-            Q(canonical_name__icontains=query) | Q(name__icontains=query)
-        ).order_by('-target_type', 'name')[:30]
+class LanguageAutocompleteView(LoginRequiredMixin, AutocompleteModelView):
+    model = GoogleAdsLanguage
+    search_lookups = ["name__icontains", "code__icontains"]
+    value_fields = ["pk", "name"]
+    def get_queryset(self):
+        return super().get_queryset()
+class LocationAutocompleteView(LoginRequiredMixin, AutocompleteModelView):
+    model = GoogleAdsLocation
+    search_lookups = ["canonical_name__icontains", "name__icontains"]
+    value_fields = ["pk", "canonical_name"]
 
-        results = [{'id': l.criteria_id, 'text': f"{l.canonical_name} ({l.target_type})"} for l in locations]
-        return JsonResponse({'results': results})
+    def get_queryset(self):
+        return super().get_queryset().filter(status='Active')
+        
 
 
 class SaveKeywordsAjaxView(LoginRequiredMixin, View):
@@ -299,62 +354,86 @@ class KeywordMagicHomeView(LoginRequiredMixin, TemplateView):
             return redirect(request.path)
 
 # Asegúrate de tener estos imports arriba
-
-
 class MagicToolView(LoginRequiredMixin, TemplateView):
-    """
-    Vista de RESULTADOS de una búsqueda específica (Run).
-    Recibe el ID del Run (pk), no del Proyecto.
-    """
     template_name = 'keyword_research/keyword_magic.html'
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        
-        # 1. Capturamos el ID de la URL (Ahora representa un RUN, no un Proyecto)
         run_id = self.kwargs.get('pk')
         
-        # 2. Buscamos el Run (y verificamos seguridad)
+        # 1. Obtener el Run y asegurar pertenencia al usuario
         run = get_object_or_404(Run, pk=run_id, user=self.request.user)
-        # 3. Recuperamos el Proyecto a través del Run
         project = run.project
-        # --- FIX PARA EL ERROR UUID ---
-        # Convertimos el ID a string explícitamente para evitar problemas de serialización
-        context['run_id_str'] = str(run.id)
 
-
-        # ✅ MEJORA UX: Actualizamos la sesión de forma SEGURA
-        # Así el sidebar sabrá qué proyecto resaltar, pero usando str() para no romper nada.
+        # 2. Sincronizar Sesión para el Sidebar de Hando
         self.request.session['active_project_id'] = str(project.id)
         self.request.session['active_project_name'] = project.name
-        # 4. Buscamos SOLO las keywords generadas en ESTA búsqueda
-        # Esto es vital: No mezclamos con keywords viejas o de CSVs anteriores
-        keywords = KeywordIdea.objects.filter(run=run).order_by('-avg_monthly_searches')
 
-        # --- Filtros Visuales (Opcional: Mantenemos tu lógica de 'q') ---
-        query = self.request.GET.get('q', '')
-        if query:
-            keywords = keywords.filter(keyword__icontains=query)
+        # Intentamos obtener la keyword semilla del modelo KeywordIdeaRun o del JSON inputs
+        # Esto soluciona el error VariableDoesNotExist [query]
+        seed_text = getattr(run, 'seed_keyword', '') 
+        if not seed_text and hasattr(run, 'inputs'):
+            seed_text = run.inputs.get('seed', '')
 
-        # 5. Pasamos todo al template
-        context['run_id_str'] = str(run.id)
-        context['run'] = run
-        context['project'] = project
-        context['keywords'] = KeywordIdea.objects.filter(run=run).order_by('-avg_monthly_searches')
-        # (Opcional) Si quieres mostrar historial en el sidebar, filtra por el proyecto del Run
-        context['last_runs'] = Run.objects.filter(
-            project=project, 
-            kind__in=['keyword_discovery', 'keyword_import']
-        ).order_by('-created_at')[:10]
-        
+        # 3. Queryset Base
+        keywords_query = KeywordIdea.objects.filter(run=run).order_by('-search_volume')
+
+        # --- FILTROS AVANZADOS (Semrush Style) ---
+        include_kw = self.request.GET.get('include', '').strip()
+        if include_kw:
+            # Soporta múltiples palabras separadas por comas
+            for word in [w.strip() for w in include_kw.split(',')]:
+                keywords_query = keywords_query.filter(keyword__icontains=word)
+
+        exclude_kw = self.request.GET.get('exclude', '').strip()
+        if exclude_kw:
+            for word in [w.strip() for w in exclude_kw.split(',')]:
+                keywords_query = keywords_query.exclude(keyword__icontains=word)
+
+        # 4. CÁLCULOS SEGUROS PARA KPIs (Evita error int + str)
+        total_vol = 0
+        total_kd = 0
+        valid_kd_count = 0
+
+        for k in keywords_query:
+            try:
+                # Forzamos conversión a int/float por seguridad
+                vol = int(k.search_volume or 0)
+                kd = float(k.competition or 0)
+                
+                total_vol += vol
+                if kd > 0:
+                    total_kd += kd
+                    valid_kd_count += 1
+            except (ValueError, TypeError):
+                continue
+
+        avg_kd = (total_kd / valid_kd_count) if valid_kd_count > 0 else 0
+        # En la vista de MagicToolView, podrías añadir esto al contexto:
+        gsc_queries = GscRow.objects.filter(project=project).values_list('query', flat=True)
+        # Esto permite que el template sepa qué keywords ya tienen "huella" en Google.
+        # 5. Grupos Dinámicos (Clustering)
+        groups = []
+        if keywords_query.exists():
+            # Usamos el servicio de clustering sobre las keywords filtradas
+            groups = KeywordClusteringService.get_groups([k.keyword for k in keywords_query[:300]])
+
+        # 6. Construir Contexto Final
+        context.update({
+            'run': run,
+            'project': project,
+            'keywords': keywords_query,
+            'total_volume': total_vol,
+            'avg_kd': avg_kd,
+            'groups': groups,
+            'include_val': include_kw,
+            'exclude_val': exclude_kw,
+            'run_id_str': str(run.id),
+            'gsc_queries':gsc_queries,
+            'query': seed_text,
+            
+        })
         return context
-
-    # NOTA DE ARQUITECTO:
-    # He eliminado el método POST (CSV Import) de esta vista específica.
-    # ¿Por qué? Porque esta URL ahora es /magic/<run_id>/ (para ver resultados).
-    # La importación de CSV debería hacerse en el Dashboard (/magic/) o en una vista dedicada,
-    # ya que al importar CSV creas un NUEVO Run, no modificas uno existente.
-    
 class KeywordMagicView(LoginRequiredMixin, TemplateView):
     
     def dispatch(self, request, *args, **kwargs):
@@ -388,6 +467,16 @@ class KeywordMagicView(LoginRequiredMixin, TemplateView):
         project = self.project
         query = self.request.GET.get('q', '').strip()
         
+        # 4. Buscamos las keywords
+        keywords_list = KeywordIdea.objects.filter(run=run).order_by('-avg_monthly_searches')
+
+        # --- CÁLCULOS PARA LOS WIDGETS (KPIs) ---
+        total_volume = sum(k.avg_monthly_searches for k in keywords_list if k.avg_monthly_searches)
+        
+        # KD Promedio (evitando división por cero)
+        count = keywords_list.count()
+        avg_kd = sum(k.competition_level for k in keywords_list) / count if count > 0 else 0
+
         # --- CAPTURAR FILTROS DEL HOME ---
         country_code = self.request.GET.get('location_country')
         lang_code = self.request.GET.get('language')
@@ -417,7 +506,17 @@ class KeywordMagicView(LoginRequiredMixin, TemplateView):
                         'cpc': item.get('cpc', 0.00),
                         'source': item.get('source', 'API')
                     })
-            
+            context.update({
+                'run': run,
+                'project': project,
+                'keywords': keywords_list,
+                'total_volume': total_volume,
+                'avg_kd': avg_kd,
+                'last_runs': Run.objects.filter(
+                    project=project, 
+                    kind__in=['keyword_discovery', 'keyword_import']
+                ).order_by('-created_at')[:10]
+            })
             # Clustering (Sidebar)
             context['groups'] = KeywordClusteringService.get_groups([k['keyword'] for k in keywords_data])
             context['keywords'] = keywords_data

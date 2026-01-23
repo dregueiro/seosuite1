@@ -7,7 +7,7 @@ from django.db.models import Q
 
 # Modelos
 from core.models import Run
-from keyword_research.models import KeywordIdea
+from keyword_research.models import KeywordIdea, KeywordIdeaRun
 from projects.models import Project
 
 # Servicios
@@ -18,9 +18,7 @@ from .close_variants import CloseVariantsService
 logger = logging.getLogger(__name__)
 
 # --- LISTA DE PRECIOS DATAFORSEO ---
-# Live: $0.08 (Precio fijo, rápido, datos frescos)
 COST_LIVE = Decimal('0.08')      
-# Database: $0.10 (Estimado de seguridad: $0.01 base + resultados. Trae muchas más keywords)
 COST_DATABASE = Decimal('0.10')
 
 class KeywordDiscoveryService:
@@ -41,20 +39,28 @@ class KeywordDiscoveryService:
         except Project.DoesNotExist:
             raise ValueError("Proyecto no encontrado.")
 
-        # 2. Crear Run (Registro de Auditoría)
-        run = Run.objects.create(
+        # ---------------------------------------------------------------
+        # 2. Crear Run (USANDO TU ARQUITECTURA CORE COMPLETA)
+        # ---------------------------------------------------------------
+        # Usamos KeywordIdeaRun para satisfacer la FK, pero llenamos los campos del Core (Run)
+        run = KeywordIdeaRun.objects.create(
             project=project,
             user=user, 
-            client=project.client,
-            provider="smart_orchestrator", 
-            kind="keyword_discovery", 
-            status="PENDING",
+            client=project.client,          # Restaurado (Core)
+            provider="smart_orchestrator",  # Restaurado (Core)
+            kind="keyword_discovery",       # Restaurado (Core)
+            status="PENDING",               # Restaurado (Core)
+            # Restauramos el JSONField de inputs completo
             inputs={
                 "seed": seed, 
                 "language": language_id, 
                 "location": location_id,
                 "mode": mode
-            }
+            },
+            # Campos específicos de KeywordIdeaRun (si los tienes duplicados o herencia)
+            seed_keyword=seed, 
+            language_code=language_id, 
+            country_code=location_id
         )
 
         results = []
@@ -65,35 +71,29 @@ class KeywordDiscoveryService:
             # =================================================================
             # 💎 PASO 0: INTELIGENCIA INTERNA (CACHE) - Costo $0
             # =================================================================
-            # Buscamos si tenemos datos frescos (menos de 30 días)
             thirty_days_ago = timezone.now() - timedelta(days=30)
             
-            # Filtro: Contiene la semilla Y es reciente
-            # NOTA: Buscamos en TODOS los proyectos para aprovechar la "Economía de Escala"
+            # Filtramos usando la fecha del Run padre
             cached_keywords = KeywordIdea.objects.filter(
                 keyword__icontains=seed,
-                created_at__gte=thirty_days_ago
-            ).order_by('-avg_monthly_searches')[:500]
+                run__created_at__gte=thirty_days_ago
+            ).order_by('-search_volume')[:500]
 
-            # Si encontramos una cantidad decente (ej: más de 10), usamos esto.
             if cached_keywords.exists() and len(cached_keywords) > 10:
-                logger.info(f"💎 [CACHE] ¡Datos encontrados en casa! Ahorrando dinero...")
-                
-                # Transformamos los objetos DB a diccionarios para mantener el formato standard
+                logger.info(f"💎 [CACHE] ¡Datos encontrados en casa!")
                 results = []
                 for kw in cached_keywords:
                     results.append({
                         'keyword': kw.keyword,
-                        'volume': kw.avg_monthly_searches,
-                        'competition': kw.competition_level,
+                        'volume': kw.search_volume, # Usamos el campo nuevo
+                        'competition': kw.competition,
                         'cpc_high': kw.cpc,
                         'source': 'Base de Datos Propia (Cache)'
                     })
                 source_used = "internal_cache"
 
             # =================================================================
-            # 🟢 PASO 1: GOOGLE ADS (Gratis / Prioridad 1)
-            # Solo si no encontramos nada en Cache
+            # 🟢 PASO 1: GOOGLE ADS (Gratis)
             # =================================================================
             if not results and project.google_credential and project.google_ads_customer_id:
                 try:
@@ -109,101 +109,90 @@ class KeywordDiscoveryService:
                         logger.info(f"✅ Éxito con Google Ads.")
                 
                 except Exception as e:
-                    logger.warning(f"⚠️ Google Ads falló (Permisos/Token). Pasando a DataForSEO... Error: {e}")
-                    # No detenemos el proceso, dejamos caer al siguiente bloque
+                    logger.warning(f"⚠️ Google Ads falló. Pasando a DataForSEO... Error: {e}")
 
             # =================================================================
-            # 🟡 PASO 2: DATAFORSEO (Pago / Prioridad 2)
-            # Solo si Cache y Google fallaron (o no hay credenciales)
+            # 🟡 PASO 2: DATAFORSEO (Pago)
             # =================================================================
             if not results:
-                # Determinar costo según el modo elegido por el usuario
                 required_budget = COST_DATABASE if mode == 'database' else COST_LIVE
-                
-                logger.info(f"💰 Verificando saldo para DataForSEO Mode: {mode.upper()} (Req: ${required_budget})...")
-                
-                # Usamos el nombre real que definiste en el modelo Project
                 current_budget = project.authorized_monthly_budget if hasattr(project, 'authorized_monthly_budget') else Decimal('0.00')
                 
                 if current_budget >= required_budget:
                     try:
-                        logger.info(f"🔄 [DataForSEO] Saldo OK. Ejecutando consulta...")
-                        
-                        # Fallback de ubicación si no hay mapeo exacto (USA por defecto)
-                        target_loc = 2840 
+                        target_loc = location_id if location_id else 2840 
                         
                         results = DataForSEOService.get_suggestions(
                             seed_keyword=seed, 
                             location_code=target_loc,
                             language_code=project.language_code,
-                            mode=mode # <--- Pasamos 'live' o 'database'
+                            mode=mode
                         )
                         
                         if results:
                             source_used = f"dataforseo_{mode}"
                             cost_incurred = required_budget
                             
-                            # --- COBRO AUTOMÁTICO ---
-                            nuevo_saldo = current_budget - cost_incurred
-                            project.authorized_monthly_budget = nuevo_saldo
+                            # Cobro
+                            project.authorized_monthly_budget = current_budget - cost_incurred
                             project.save()
-                            logger.info(f"✅ Éxito DataForSEO. Costo descontado. Nuevo saldo: ${project.budget}")
+                            logger.info(f"✅ Éxito DataForSEO. Costo descontado.")
 
                     except Exception as e:
                         logger.error(f"❌ Error DataForSEO: {e}")
                 else:
-                    logger.warning(f"⛔ SALDO INSUFICIENTE. Se requiere ${required_budget}, tienes ${current_budget}.")
+                    logger.warning(f"⛔ SALDO INSUFICIENTE.")
 
             # =================================================================
-            # 🔵 PASO 3: ALGORITMO LOCAL (Gratis / Fallback Final)
-            # Si todo lo anterior falló o no hay dinero
+            # 🔵 PASO 3: ALGORITMO LOCAL (Fallback)
             # =================================================================
             if not results:
-                logger.info(f"💻 [Local] Generando variaciones sintácticas...")
+                logger.info(f"💻 [Local] Generando variaciones...")
                 variants = CloseVariantsService.generate([seed])
                 results = [{
-                    'keyword': v, 'volume': 0, 'competition': 'UNKNOWN', 
+                    'keyword': v, 'volume': 0, 'competition': 0, 
                     'cpc_high': 0.0, 'source': 'Algoritmo Local'
                 } for v in variants]
                 source_used = "local_algorithm"
 
             # -------------------------------------------------------------
-            # 💾 GUARDADO Y CIERRE
+            # 💾 GUARDADO 
             # -------------------------------------------------------------
-            
-            # Guardamos los resultados en la base de datos (y alimentamos el Cache futuro)
             ideas_to_create = []
             for item in results:
-                # Evitamos guardar duplicados exactos en el mismo Run si la API trae basura
-                # (Opcional: podrías agregar validación extra aquí)
+                
+                # Validación segura de competencia
+                comp_val = item.get('competition', 0)
+                if comp_val == 'UNKNOWN' or not isinstance(comp_val, (int, float)):
+                    comp_val = 0.5
                 
                 ideas_to_create.append(KeywordIdea(
-                    project=project,
-                    run=run,
+                    run=run, # FK al hijo (KeywordIdeaRun)
                     keyword=item['keyword'],
-                    avg_monthly_searches=item.get('volume', 0),
-                    competition_index=item.get('competition_index', 0),
-                    competition_level=str(item.get('competition', 'UNKNOWN')),
-                    cpc=item.get('cpc_high', 0)
+                    # IMPORTANTE: Aquí sí usamos los nombres nuevos porque la tabla KeywordIdea cambió
+                    search_volume=item.get('volume', 0),    
+                    competition=float(comp_val), 
+                    cpc=item.get('cpc_high', 0),
+                    raw_data={'source': item.get('source')} 
                 ))
             
             if ideas_to_create:
                 KeywordIdea.objects.bulk_create(ideas_to_create)
 
-            # Actualizamos el Run
+            # Actualizamos el Run (Campos del Core)
             run.status = "SUCCESS"
-            run.provider = source_used
-            run.cost_units = cost_incurred
-            run.outputs = {"count": len(ideas_to_create), "source": source_used}
-            run.completed_at = timezone.now()
+            run.provider = source_used # Campo del Core
+            run.cost_units = cost_incurred # Campo del Core
+            run.outputs = {"count": len(ideas_to_create), "source": source_used} # Campo del Core
+            run.completed_at = timezone.now() # Campo del Core
             run.save()
 
             return run
 
         except Exception as e:
-            # Captura de errores fatales del sistema
             logger.error(f"🔥 Error Crítico en Orquestador: {traceback.format_exc()}")
+            # Campos del Core para manejo de errores
             run.status = "FAILED"
-            run.error_log = str(e)
+            run.error_log = str(e) # Campo del Core
             run.save()
             raise e

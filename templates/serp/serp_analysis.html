@@ -1,0 +1,236 @@
+{% extends "base.html" %}
+{% load humanize %}
+
+{% block content %}
+<div class="page-content">
+    <div class="container-fluid">
+
+        <div class="row">
+            <div class="col-12">
+                <div class="page-title-box d-flex align-items-center justify-content-between">
+                    <div>
+                        <h4 class="page-title">Analytics: <span class="text-primary">{{ keyword_name }}</span></h4>
+                        <ol class="breadcrumb m-0 fs-12">
+                            <li class="breadcrumb-item"><a href="javascript: void(0);">Investigación</a></li>
+                            <li class="breadcrumb-item active">Análisis de SERP</li>
+                        </ol>
+                    </div>
+                    
+                    <div class="page-title-right">
+                        <a href="javascript:history.back()" class="btn btn-white btn-sm rounded-pill shadow-sm px-3 border">
+                            <i class="mdi mdi-arrow-left me-1 text-primary"></i> 
+                            <span class="fw-semibold">Volver al Magic Tool</span>
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="col-md-6 col-xl-4">
+                <div class="card h-100 shadow-sm border-0">
+                    <div class="card-body">
+                        <div class="d-flex align-items-center justify-content-between">
+                            <div>
+                                <p class="text-muted text-uppercase fw-semibold fs-13 mb-2">Volumen de Búsqueda</p>
+                                <h3 class="mb-0 text-dark">{{ volume|intcomma }}</h3>
+                            </div>
+                            <div class="avatar-sm bg-soft-primary rounded">
+                                <i class="mdi mdi-trending-up avatar-title font-22 text-primary"></i>
+                            </div>
+                        </div>
+                        <div class="mt-3">
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                <span class="text-muted fs-12"><i class="mdi mdi-flag-variant text-danger me-1"></i>{{ country_name }}</span>
+                                <span class="text-dark fw-bold">100%</span>
+                            </div>
+                            <div class="progress progress-sm" style="height: 5px;">
+                                <div class="progress-bar bg-primary" role="progressbar" style="width: 100%"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-6 col-xl-4">
+                <div class="card h-100 shadow-sm border-0">
+                    <div class="card-body">
+                        <div class="d-flex align-items-center justify-content-between">
+                            <div>
+                                <p class="text-muted text-uppercase fw-semibold fs-13 mb-2">Keyword Difficulty</p>
+                                <h3 class="mb-0">{{ kd }}%</h3>
+                            </div>
+                            <div class="avatar-sm {% if kd > 60 %}bg-soft-danger{% else %}bg-soft-success{% endif %} rounded">
+                                <i class="mdi mdi-gauge avatar-title font-22 {% if kd > 60 %}text-danger{% else %}text-success{% endif %}"></i>
+                            </div>
+                        </div>
+                        <div class="mt-3">
+                            {% if kd > 70 %}<span class="badge bg-soft-danger text-danger">Muy Difícil</span>
+                            {% elif kd > 40 %}<span class="badge bg-soft-warning text-warning">Media</span>
+                            {% else %}<span class="badge bg-soft-success text-success">Fácil</span>{% endif %}
+                            <span class="text-muted fs-12 ms-2">Basado en competidores</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-6 col-xl-4">
+                <div class="card h-100 shadow-sm border-0">
+                    <div class="card-body">
+                        <div class="d-flex align-items-center justify-content-between">
+                            <div>
+                                <p class="text-muted text-uppercase fw-semibold fs-13 mb-2">CPC Promedio</p>
+                                <h3 class="mb-0">${{ cpc|floatformat:2 }}</h3>
+                            </div>
+                            <div class="avatar-sm bg-soft-info rounded">
+                                <i class="mdi mdi-currency-usd avatar-title font-22 text-info"></i>
+                            </div>
+                        </div>
+                        <div class="mt-3">
+                            <span class="badge bg-soft-info text-info rounded-pill px-3">Informativa</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row mt-4">
+            <div class="col-12">
+                <div class="card shadow-sm border-0">
+                    <div class="card-header bg-white py-3">
+                        <h5 class="card-title mb-0"><i class="mdi mdi-google me-2 text-primary"></i>Resultados en Tiempo Real de Google</h5>
+                    </div>
+                    <div class="card-body">
+                        <table id="datatable-serp" class="table table-centered table-nowrap mb-0 w-100">
+                            <thead class="bg-light">
+                                <tr>
+                                    <th class="text-center" style="width: 60px;">Pos.</th>
+                                    <th>Detalles del Resultado Orgánico</th>
+                                    <th>Dominio</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for res in organic_results %}
+                                    {% if res.type == 'organic' %}
+                                    <tr>
+                                        <td class="text-center fw-bold text-muted">{{ forloop.counter }}</td>
+                                        <td class="py-3">
+                                            <div class="d-flex flex-column">
+                                                <a href="{% if res.url %}{{ res.url }}{% elif res.link %}{{ res.link }}{% else %}#{% endif %}" target="_blank" class="fw-bold text-primary fs-15 text-decoration-none mb-1">
+                                                    {{ res.title|default:"Sin título" }}
+                                                </a>
+                                                <p class="text-muted small mb-0 fs-12 lh-sm">{{ res.description|default:""|truncatechars:120 }}</p>
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <span class="text-success fw-medium small">
+                                                <i class="mdi mdi-link-variant me-1"></i>{% if res.domain %}{{ res.domain }}{% else %}google.com{% endif %}
+                                            </span>
+                                        </td>
+                                    </tr>
+                                    {% endif %}
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row mt-4 pb-5">
+            <div class="col-xl-4 col-md-6 mb-4">
+                <div class="card h-100 shadow-sm border-0">
+                    <div class="card-header bg-white py-3 border-bottom d-flex justify-content-between align-items-center">
+                        <h6 class="card-title mb-0 fw-bold">Keyword Ideas</h6>
+                        <span class="badge bg-soft-warning text-warning fs-10">DATABASE</span>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="list-group list-group-flush">
+                            {% for idea in db_ideas %}
+                            <div class="list-group-item d-flex justify-content-between align-items-center border-0 py-2 fs-13">
+                                <span class="text-dark">{{ idea.keyword }}</span>
+                                <span class="text-muted fw-bold">{{ idea.search_volume|intcomma }}</span>
+                            </div>
+                            {% empty %}
+                            <div class="p-4 text-center text-muted fs-12">No hay ideas similares.</div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-xl-4 col-md-6 mb-4">
+                <div class="card h-100 shadow-sm border-0">
+                    <div class="card-header bg-white py-3 border-bottom d-flex justify-content-between align-items-center">
+                        <h6 class="card-title mb-0 fw-bold">Questions</h6>
+                        <span class="badge bg-soft-primary text-primary fs-10">GOOGLE LIVE</span>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="list-group list-group-flush">
+                            {% for q in google_questions %}
+                            <div class="list-group-item border-0 py-2 fs-13 text-dark">
+                                <i class="mdi mdi-comment-question-outline text-muted me-2"></i> {{ q.question|default:q.title }}
+                            </div>
+                            {% empty %}
+                            <div class="p-4 text-center text-muted fs-12">Sin preguntas detectadas.</div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-xl-4 col-md-12 mb-4">
+                <div class="card h-100 shadow-sm border-0">
+                    <div class="card-header bg-white py-3 border-bottom d-flex justify-content-between align-items-center">
+                        <h6 class="card-title mb-0 fw-bold">Related Searches</h6>
+                        <span class="badge bg-soft-success text-success fs-10">GOOGLE LIVE</span>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="list-group list-group-flush">
+                            {% for rel in google_related %}
+                            <a href="#" class="list-group-item list-group-item-action border-0 py-2 fs-13 text-dark">
+                                <i class="mdi mdi-magnify text-muted me-2"></i> {{ rel.text|default:rel.title }}
+                            </a>
+                            {% empty %}
+                            <div class="p-4 text-center text-muted fs-12">Sin búsquedas relacionadas.</div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div> 
+</div>
+
+<style>
+    .bg-soft-primary { background-color: rgba(114, 124, 245, 0.1) !important; }
+    .bg-soft-success { background-color: rgba(10, 207, 151, 0.1) !important; }
+    .bg-soft-danger { background-color: rgba(250, 92, 124, 0.1) !important; }
+    .bg-soft-warning { background-color: rgba(255, 188, 0, 0.1) !important; }
+    .bg-soft-info { background-color: rgba(57, 175, 209, 0.1) !important; }
+    .fs-13 { font-size: 13px !important; }
+    .fs-15 { font-size: 15px !important; }
+    .fs-12 { font-size: 12px !important; }
+    .fs-10 { font-size: 10px !important; }
+</style>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+$(document).ready(function() {
+    // Inicialización del DataTable SERP
+    if ($.fn.DataTable.isDataTable('#datatable-serp')) {
+        $('#datatable-serp').DataTable().destroy();
+    }
+
+    $('#datatable-serp').DataTable({
+        "language": { "url": "//cdn.datatables.net/plug-ins/1.13.7/i18n/es-ES.json" },
+        "pageLength": 10,
+        "order": [[0, "asc"]],
+        "dom": '<"d-flex justify-content-between align-items-center mb-3"f>rtip',
+    });
+});
+</script>
+{% endblock %}

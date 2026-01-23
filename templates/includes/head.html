@@ -1,18 +1,106 @@
 {% load static %}
-<head>
-    <meta charset="utf-8" />
-    <title>{% block title %}SEOSuite1 | SEO OS{% endblock %}</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    
-    <link rel="shortcut icon" href="{% static 'vendor/hando/images/favicon.ico' %}">
 
-    <link href="{% static 'vendor/hando/libs/bootstrap/css/bootstrap.min.css' %}" rel="stylesheet" type="text/css" />
-    <link href="{% static 'vendor/hando/css/icons.min.css' %}" rel="stylesheet" type="text/css" />
-    <link href="{% static 'vendor/hando/css/app.min.css' %}" rel="stylesheet" type="text/css" />
-    <link rel="stylesheet" href="{% static 'vendor/hando/libs/leaflet/leaflet.css' %}" />   
-    <link href="{% static 'vendor/hando/libs/datatables.net-bs5/css/dataTables.bootstrap5.min.css' %}" rel="stylesheet" type="text/css" />
-    <link href="{% static 'vendor/hando/libs/datatables.net-responsive-bs5/css/responsive.bootstrap5.min.css' %}" rel="stylesheet" type="text/css" />
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" />
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" />
-    {% block extra_css %}{% endblock %}
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{% block title %}SEOSuite 2026{% endblock %}</title>
+
+    <script src="{% static 'vendor/wowdash/assets/js/lib/iconify-icon.min.js' %}"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap" rel="stylesheet">
+    <!-- remix icon font css  -->
+    <link rel="stylesheet" href="{% static 'vendor/wowdash/assets/css/remixicon.css' %}">
+    <!-- Apex Chart css -->
+    <link rel="stylesheet" href="{% static 'vendor/wowdash/assets/css/lib/apexcharts.css' %}">
+    <!-- Data Table css -->
+    <link rel="stylesheet" href="{% static 'vendor/wowdash/assets/css/lib/dataTables.min.css' %}">
+    <!-- Text Editor css -->
+    <link rel="stylesheet" href=" {% static 'vendor/wowdash/assets/css/lib/editor-katex.min.css' %} ">  
+    <link rel="stylesheet" href=" {% static 'vendor/wowdash/assets/css/lib/editor.atom-one-dark.min.css' %} ">
+    <link rel="stylesheet" href=" {% static 'vendor/wowdash/assets/css/lib/editor.quill.snow.css' %} ">
+    <!-- Date picker css -->
+    <link rel="stylesheet" href=" {% static 'vendor/wowdash/assets/css/lib/flatpickr.min.css' %} ">
+    <!-- Calendar css -->
+    <link rel="stylesheet" href=" {% static 'vendor/wowdash/assets/css/lib/full-calendar.css' %} ">
+    <!-- Vector Map css -->
+    <link rel="stylesheet" href= " {% static 'vendor/wowdash/assets/css/lib/jquery-jvectormap-2.0.5.css' %}">
+    <!-- Popup css -->
+    <link rel="stylesheet" href=" {% static 'vendor/wowdash/assets/css/lib/magnific-popup.css' %}">
+    <!-- Slick Slider css -->
+    <link rel="stylesheet" href=" {% static 'vendor/wowdash/assets/css/lib/slick.css' %} ">
+    <!-- prism css -->
+    <link rel="stylesheet" href=" {% static 'vendor/wowdash/assets/css/lib/prism.css' %}">
+    <!-- file upload css -->
+    <link rel="stylesheet" href=" {% static 'vendor/wowdash/assets/css/lib/file-upload.css' %}">
+    <link rel="stylesheet" href=" {% static 'vendor/wowdash/assets/css/lib/audioplayer.css' %}">
+    <!-- main css -->
+    <link rel="stylesheet" href=" {% static 'vendor/wowdash/assets/css/style.css'%}">
+
+    <link rel="stylesheet" href="{% static 'vendor/wowdash/assets/css/remixicon.css' %}">
+    <link rel="stylesheet" href="{% static 'vendor/wowdash/assets/css/style.css' %}">
+    <link href="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/css/tom-select.bootstrap5.min.css" rel="stylesheet">
+    {{ form.media.css }}
+    
+  <style>
+    /* 1. Ajuste del contenedor principal de TomSelect */
+    .ts-wrapper {
+        width: 100% !important;
+        padding: 0 !important;
+    }
+
+    /* 2. Estilizar el control (el input visual) */
+    /* Usamos .icon-field delante para que sepa que lleva icono */
+    .icon-field .ts-wrapper .ts-control {
+        width: 100% !important;
+        min-height: 56px !important; /* Altura de 56px para match con el seed input */
+        padding: 0 12px 0 45px !important; /* 45px a la izquierda para el icono */
+        border: 1px solid #d1d5db !important; /* border-neutral-200 */
+        border-radius: 12px !important; /* Radio de 12px como pediste */
+        background-color: #ffffff !important;
+        font-size: 14px !important;
+        display: flex !important;
+        align-items: center !important;
+        transition: border-color 0.2s, box-shadow 0.2s !important;
+        box-shadow: none !important; /* Quitamos sombras por defecto de Bootstrap */
+    }
+
+    /* 3. Comportamiento cuando el usuario hace clic (Focus) */
+    .icon-field .ts-wrapper.focus .ts-control {
+        border-color: #4f46e5 !important; /* primary-600 */
+        box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1) !important;
+    }
+
+    /* 4. El icono de Wowdash debe estar por encima de todo */
+    .icon-field .icon {
+        position: absolute;
+        left: 15px;
+        z-index: 20 !important; /* Subimos el z-index para que no lo tape TomSelect */
+        pointer-events: none;
+        display: flex;
+        align-items: center;
+        color: #94a3b8; /* slate-400 */
+    }
+
+    /* 5. Estilizar el Dropdown (la lista de resultados) */
+    .ts-dropdown {
+        z-index: 9999 !important;
+        border-radius: 12px !important;
+        margin-top: 5px !important;
+        border: 1px solid #e2e8f0 !important;
+        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1) !important;
+        padding: 8px !important;
+    }
+
+    /* 6. Estilizar los items dentro de la lista */
+    .ts-dropdown .option {
+        padding: 10px 12px !important;
+        border-radius: 8px !important;
+        cursor: pointer !important;
+    }
+
+    .ts-dropdown .active {
+        background-color: #4f46e5 !important; /* primary-600 */
+        color: #ffffff !important;
+    }
+</style>
+{% block extra_css %}{% endblock %}
 </head>

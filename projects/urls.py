@@ -7,13 +7,12 @@ from .views import (
     ProjectIntegrationView,      # <--- NUEVA
     test_google_integration_ajax,
     ProjectByClientListView, # <--- NUEVA
-    ActivateProjectView
+    ActivateProjectView,
+    GscSyncView
 )
 
 app_name = 'projects'
 
-
-app_name = 'projects'
 
 urlpatterns = [
     path('', ProjectListView.as_view(), name='list'),
@@ -25,4 +24,5 @@ urlpatterns = [
     # Integraciones
     path('<int:pk>/integrations/', ProjectIntegrationView.as_view(), name='integrations'),
     path('<int:pk>/test-access/', test_google_integration_ajax, name='test_access'),
+    path('<int:project_id>/sync-gsc/', GscSyncView.as_view(), name='sync_gsc'),
 ]

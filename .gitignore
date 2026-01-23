@@ -1,12 +1,30 @@
-# .gitignore
+# Entorno y Python
 venv/
 *.pyc
 __pycache__/
 db.sqlite3
 .env
 .vscode/
+
+# Logs y Bases de Datos
+*.log
+*.sql
+
+# Archivos de Datos (Evita bloqueos de GitHub)
+*.zip
+*.csv
+*.xlsx
+*.rar
+*.tar
+
+# Media y Estáticos
 media/
 static/
+
 # Credenciales de Google (¡MUY IMPORTANTE!)
 *.json
 !credentials_example.json
+
+# Sistema
+.DS_Store
+Thumbs.db

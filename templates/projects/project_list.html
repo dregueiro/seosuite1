@@ -1,128 +1,181 @@
 {% extends "base.html" %}
 {% load static %}
+{% load humanize %}
+
+
+{% block breadcrumb %}
+<div class="flex flex-wrap items-center justify-between gap-2 mb-6">
+    <h6 class="font-semibold mb-0 dark:text-white">
+        {% if object %}List View{% else %}Listado de Proyectos{% endif %}
+    </h6>
+    <ul class="flex items-center gap-[6px]">
+        <li class="font-medium">
+            <a href="{% url 'clients:list' %}" class="flex items-center gap-2 hover:text-primary-600 dark:text-white">
+                <iconify-icon icon="solar:users-group-two-rounded-broken" class="icon text-lg"></iconify-icon>
+                Proyectos
+            </a>
+        </li>
+        <li class="dark:text-white">-</li>
+        <li class="font-medium dark:text-white">Listado</li>
+    </ul>
+</div>
+{% endblock %}
 
 {% block content %}
-<div class="container-fluid">
-    <div class="row">
-        <div class="col-12">
-            <div class="page-title-box">
-                <div class="page-title-right">
-                    <ol class="breadcrumb m-0">
-                        <li class="breadcrumb-item"><a href="/">Dashboard</a></li>
-                        <li class="breadcrumb-item active">Proyectos</li>
-                    </ol>
-                </div>
-                <h4 class="page-title">
-                    {% if current_client %}
-                        <i class="fe-briefcase text-primary me-2"></i>Proyectos de: {{ current_client.name }}
-                    {% else %}
-                        <i class="fe-grid text-primary me-2"></i>Todos mis Proyectos
-                    {% endif %}
-                </h4>
+    <div class="card h-full p-0 rounded-xl border-0 overflow-hidden shadow-sm">
+        <div class="card-header border-b border-neutral-200 dark:border-neutral-600 bg-white dark:bg-neutral-700 py-4 px-6 flex items-center flex-wrap gap-3 justify-between">
+            <div class="flex items-center flex-wrap gap-3">
+                <form class="navbar-search flex items-center" method="GET">
+                    <input type="text" class="bg-white dark:bg-neutral-700 h-10 w-auto border-neutral-200 rounded-lg" name="search" placeholder="Buscar dominio..." value="{{ request.GET.search }}">
+                    <button type="submit" class="ms-[-35px] mt-1">
+                        <iconify-icon icon="ion:search-outline" class="icon text-neutral-400"></iconify-icon>
+                    </button>
+                </form>
             </div>
+            <a href="{% url 'projects:create' %}{% if current_client %}?client={{ current_client.id }}{% endif %}" class="btn btn-primary-600 text-sm btn-sm px-4 py-2 rounded-lg flex items-center gap-2 shadow-sm">
+                <iconify-icon icon="ic:baseline-plus" class="icon text-xl line-height-1"></iconify-icon>
+                Nuevo Proyecto
+            </a>
         </div>
-    </div>
 
-    <div class="row mb-4">
-        <div class="col-12">
-            <div class="card mb-0">
-                <div class="card-body py-2">
-                    <div class="row justify-content-between align-items-center">
-                        <div class="col-md-4">
-                            <form class="position-relative mt-2 mt-md-0">
-                                <input type="text" class="form-control form-control-sm rounded-pill ps-4" placeholder="Buscar por dominio...">
-                                <i class="fe-search position-absolute top-50 start-0 translate-middle-y ms-2 text-muted"></i>
-                            </form>
-                        </div>
-                        <div class="col-md-8 text-md-end mt-2 mt-md-0">
-                            <a href="{% url 'projects:create' %}{% if current_client %}?client={{ current_client.id }}{% endif %}" 
-                               class="btn btn-success waves-effect waves-light btn-sm rounded-pill">
-                                <i class="mdi mdi-plus-circle me-1"></i> Nuevo Proyecto
-                            </a>
-                            <button type="button" class="btn btn-white btn-sm waves-effect ms-1">Exportar</button>
-                        </div>
-                    </div>
-                </div>
+        <div class="card-body p-6">
+            <div class="grid grid-cols-1 md:grid-cols-2 2xl:grid-cols-3 3xl:grid-cols-4 gap-6">
+                {% for project in projects %}
+<div class="user-grid-card h-full">
+    <div class="relative border border-neutral-200 dark:border-neutral-600 rounded-2xl overflow-hidden bg-white dark:bg-neutral-800 h-full flex flex-col shadow-sm hover:shadow-md transition-shadow">
+        
+        <div class="h-16 bg-neutral-50 dark:bg-neutral-700/20 border-b border-neutral-100 flex justify-end items-center p-2 gap-2">
+            
+            <a href="{% url 'projects:integrations' project.pk %}" 
+               class="w-8 h-8 rounded-lg bg-white/90 border border-neutral-200 flex justify-center items-center text-neutral-400 hover:text-success-600 hover:border-success-200 transition-all shadow-sm"
+               title="Integraciones Google">
+                <iconify-icon icon="solar:link-circle-linear" class="text-xl"></iconify-icon>
+            </a>
+
+            <a href="{% url 'projects:update' project.pk %}" 
+               class="w-8 h-8 rounded-lg bg-white/90 border border-neutral-200 flex justify-center items-center text-neutral-400 hover:text-primary-600 hover:border-primary-200 transition-all shadow-sm"
+               title="Ajustes del Proyecto">
+                <iconify-icon icon="solar:pen-new-square-linear" class="text-lg"></iconify-icon>
+            </a>
+
+            <a href="{% url 'projects:delete' project.pk %}" 
+               class="w-8 h-8 rounded-lg bg-white/90 border border-neutral-200 flex justify-center items-center text-neutral-400 hover:text-danger-600 hover:border-danger-200 transition-all shadow-sm"
+               title="Eliminar Proyecto">
+                <iconify-icon icon="solar:trash-bin-trash-outline" class="text-lg"></iconify-icon>
+            </a>
+        </div>
+
+        <div class="pe-6 pb-6 ps-6 text-center mt--40 flex-grow">
+            <div class="w-16 h-16 ms-auto me-auto -mt-[32px] bg-white border-2 border-white shadow-md rounded-full overflow-hidden flex items-center justify-center relative z-10">
+                <img src="https://www.google.com/s2/favicons?domain={{ project.domain }}&sz=128" 
+                     alt="{{ project.name }}" 
+                     class="w-10 h-10 object-contain"
+                     onerror="this.src='https://ui-avatars.com/api/?name={{ project.name }}&background=6366f1&color=fff'">
             </div>
-        </div>
-    </div>
 
-    <div class="row">
-        {% for project in projects %}
-        <div class="col-xl-3 col-lg-4">
-            <div class="card text-center">
-                <div class="card-body">
-                    <div class="dropdown float-end">
-                        <a href="#" class="dropdown-toggle arrow-none card-drop" data-bs-toggle="dropdown" aria-expanded="false">
-                            <i class="mdi mdi-dots-vertical"></i>
-                        </a>
-                        <div class="dropdown-menu dropdown-menu-end">
-                            <a href="{% url 'projects:update' project.pk %}" class="dropdown-item">Configuración</a>
-                            <a href="{% url 'projects:integrations' project.pk %}" class="dropdown-item">Conexiones Google</a>
-                            <div class="dropdown-divider"></div>
-                            <a href="{% url 'projects:delete' project.pk %}" class="dropdown-item text-danger">Eliminar Proyecto</a>
-                        </div>
-                    </div>
-
-                    <div class="avatar-lg mx-auto mb-3">
-                        <div class="avatar-title bg-soft-info text-info display-5 rounded-circle">
-                            <i class="fe-globe"></i>
-                        </div>
-                    </div>
-
-                    <h4 class="mb-1"><a href="#" class="text-dark">{{ project.name }}</a></h4>
-                    <p class="text-muted font-13 mb-2">{{ project.domain }}</p>
+            <h6 class="text-lg mb-0 mt-3 truncate font-bold text-secondary-light">{{ project.name }}</h6>
+            <span class="text-neutral-400 text-[11px] mb-4 block italic">{{ project.domain }}</span>
+<!--AQUI ES DONDE ESTAN LOS BOTONES DE CONNECCIONES-->
+            <div class="mt-6 pt-5 border-t border-neutral-100 dark:border-neutral-700">
+                <div class="flex items-center justify-between">
+                    <p class="text-[10px] font-bold uppercase text-neutral-400 tracking-wider">Estado de Datos API</p>
                     
-                    <div class="mb-3">
-                        {% if project.gsc_verified and project.ga4_verified and project.ads_verified %}
-                            <span class="badge bg-soft-success text-success px-2 py-1" title="Google Search, Analytics y Ads conectados">
-                                <i class="mdi mdi-check-decagram me-1"></i> FULL CONNECTED
-                            </span>
-                        {% elif project.gsc_verified or project.ga4_verified or project.ads_verified %}
-                            <span class="badge bg-soft-info text-info px-2 py-1" title="Faltan algunas conexiones de Google">
-                                <i class="mdi mdi-link-variant me-1"></i> PARCIALMENTE CONECTADO
-                            </span>
-                        {% else %}
-                            <span class="badge bg-soft-danger text-danger px-2 py-1">
-                                <i class="mdi mdi-alert-circle-outline me-1"></i> SIN CONEXIÓN
-                            </span>
-                        {% endif %}
-                    </div>
-
-                    <div class="row g-0 border-top border-bottom py-2 mb-3">
-                        <div class="col-6 border-end">
-                            <h5 class="mb-0 text-dark">${{ project.get_available_budget|floatformat:2 }}</h5>
-                            <p class="text-muted font-11 mb-0 text-uppercase fw-bold">Presupuesto</p>
+                    <div class="flex items-center gap-3">
+                        <div class="flex items-center justify-center w-8 h-8 rounded-lg {% if project.gsc_verified %}bg-blue-50{% else %}bg-neutral-50{% endif %}">
+                            {% if project.gsc_verified %}
+                                <iconify-icon icon="logos:google-search-console" class="text-lg" title="GSC: Conectado"></iconify-icon>
+                            {% else %}
+                                <iconify-icon icon="simple-icons:googlesearchconsole" style="color: #cbd5e1;" class="text-lg" title="GSC: Pendiente"></iconify-icon>
+                            {% endif %}
                         </div>
-                        <div class="col-6">
-                            <h5 class="mb-0 text-dark">{{ project.keywords_count|default:"0" }}</h5>
-                            <p class="text-muted font-11 mb-0 text-uppercase fw-bold">Keywords</p>
+
+                        <div class="flex items-center justify-center w-8 h-8 rounded-lg {% if project.ga4_verified %}bg-orange-50{% else %}bg-neutral-50{% endif %}">
+                            {% if project.ga4_verified %}
+                                <iconify-icon icon="logos:google-analytics" class="text-lg" title="GA4: Conectado"></iconify-icon>
+                            {% else %}
+                                <iconify-icon icon="simple-icons:googleanalytics" style="color: #cbd5e1;" class="text-lg" title="GA4: Pendiente"></iconify-icon>
+                            {% endif %}
+                        </div>
+
+                        <div class="flex items-center justify-center w-8 h-8 rounded-lg {% if project.ads_verified %}bg-green-50{% else %}bg-neutral-50{% endif %}">
+                            {% if project.ads_verified %}
+                                <iconify-icon icon="logos:google-ads" class="text-lg" title="Ads: Conectado"></iconify-icon>
+                            {% else %}
+                                <iconify-icon icon="simple-icons:googleads" style="color: #cbd5e1;" class="text-lg" title="Ads: Pendiente"></iconify-icon>
+                            {% endif %}
                         </div>
                     </div>
-
-                    <div class="d-grid gap-2">
-                        <a href="{% url 'keyword_research:magic_tool_home' %}?project={{ project.pk }}" class="btn btn-primary btn-sm waves-effect waves-light">
-                            <i class="fe-zap me-1"></i> Ir al Magic Tool
-                        </a>
-                        <a href="{% url 'seo:project_dashboard' project.pk %}" class="btn btn-soft-secondary btn-sm waves-effect">
-                            <i class="fe-bar-chart-2 me-1"></i> Dashboard SEO
-                        </a>
-                    </div>
-
-                </div> </div> </div> {% empty %}
-        <div class="col-12">
-            <div class="card border-dashed border-2">
-                <div class="card-body text-center p-5">
-                    <i class="fe-folder-minus display-3 text-muted"></i>
-                    <h4 class="mt-3">No hay proyectos registrados</h4>
-                    <p class="text-muted">Empieza agregando un dominio para analizar su SEO.</p>
-                    <a href="{% url 'projects:create' %}" class="btn btn-primary rounded-pill mt-2">
-                        <i class="fe-plus me-1"></i> Crear Proyecto
-                    </a>
                 </div>
             </div>
+
+            <div class="mb-4"></div>
+            
+            
+
+            {% with available_perc=project.client.get_available_percentage %}
+            <div class="center-border relative rounded-xl p-3 flex items-center gap-4 border transition-colors
+                {% if available_perc > 50 %} bg-success-50 border-success-100
+                {% elif available_perc < 30 and available_perc > 0 %} bg-warning-50 border-warning-100
+                {% elif available_perc <= 0 %} bg-danger-50 border-danger-100
+                {% else %} bg-neutral-50 border-neutral-100 {% endif %}">
+                
+                <div class="text-center w-1/2 border-e border-neutral-200/50">
+                    <h6 class="text-sm mb-0 font-bold 
+                        {% if available_perc > 50 %}text-success-600
+                        {% elif available_perc < 30 %}text-warning-600
+                        {% elif available_perc <= 0 %}text-danger-600
+                        {% endif %}">
+                        ${{ project.client.remaining_budget|floatformat:0 }}
+                    </h6>
+                    <span class="text-neutral-400 text-[9px] uppercase font-bold tracking-wider">Saldo API</span>
+                </div>
+                
+                <div class="text-center w-1/2">
+                    <h6 class="text-sm mb-0 text-secondary-light font-bold">{{ project.tracked_keywords.count|default:"0" }}</h6>
+                    <span class="text-neutral-400 text-[9px] uppercase font-bold tracking-wider">Keywords</span>
+                </div>
+            </div>
+            {% endwith %}
+
+            <div class="grid grid-cols-2 gap-2 mt-5">
+                <a href="{% url 'projects:activate' project.pk %}" class="btn btn-primary-600 py-2.5 text-[11px] rounded-lg flex items-center justify-center gap-2 font-bold shadow-sm transition-all hover:bg-primary-700">
+                    <iconify-icon icon="solar:magic-stick-3-outline" class="text-base"></iconify-icon> 
+                    Magic Tool
+                </a>
+                <a href="{% url 'keyword_research:keyword_magic' project.pk %}" class="btn btn-outline-neutral-600 py-2.5 text-[11px] rounded-lg flex items-center justify-center gap-2 font-bold hover:bg-neutral-50">
+                    <iconify-icon icon="solar:chart-2-outline" class="text-base"></iconify-icon> Dashboard
+                </a>
+            </div>
         </div>
-        {% endfor %}
     </div>
-</div>
+</div>  
+
+                {% empty %}
+                <div class="col-span-full py-20 text-center">
+                    <div class="flex flex-col items-center">
+                        <iconify-icon icon="solar:folder-error-outline" class="text-6xl text-neutral-200 mb-4"></iconify-icon>
+                        <h5 class="text-neutral-500">No se encontraron proyectos</h5>
+                        <p class="text-neutral-400 text-sm">Prueba con otro término o crea un nuevo dominio.</p>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+
+            {% if is_paginated %}
+            <div class="flex items-center justify-between flex-wrap gap-2 mt-6">
+                <span class="text-sm text-neutral-500">Proyectos {{ page_obj.start_index }} - {{ page_obj.end_index }}</span>
+                <ul class="pagination flex items-center gap-2">
+                    {% if page_obj.has_previous %}
+                    <li class="page-item"><a class="page-link bg-neutral-100 p-2 rounded-lg" href="?page={{ page_obj.previous_page_number }}{% if request.GET.search %}&search={{ request.GET.search }}{% endif %}"><iconify-icon icon="ep:arrow-left"></iconify-icon></a></li>
+                    {% endif %}
+                    <li class="page-item"><span class="bg-primary-600 text-white px-3 py-1 rounded-lg">{{ page_obj.number }}</span></li>
+                    {% if page_obj.has_next %}
+                    <li class="page-item"><a class="page-link bg-neutral-100 p-2 rounded-lg" href="?page={{ page_obj.next_page_number }}{% if request.GET.search %}&search={{ request.GET.search }}{% endif %}"><iconify-icon icon="ep:arrow-right"></iconify-icon></a></li>
+                    {% endif %}
+                </ul>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
 {% endblock %}

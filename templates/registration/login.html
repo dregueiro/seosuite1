@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="utf-8" />
+    <title>Iniciar Sesión | SEOSuite</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" />
+    <link href="https://cdn.jsdelivr.net/npm/@mdi/font@7.4.47/css/materialdesignicons.min.css" rel="stylesheet" />
+    
+    <style>
+        body {
+            background-color: #f3f4f6;
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .card-login {
+            border: none;
+            border-radius: 15px;
+            box-shadow: 0 0.75rem 1.5rem rgba(18,38,63,.03);
+        }
+        .btn-primary {
+            background-color: #3bafda; /* Color Hando Theme */
+            border-color: #3bafda;
+        }
+        .btn-primary:hover {
+            background-color: #3295ba;
+            border-color: #3295ba;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="row justify-content-center">
+            <div class="col-md-8 col-lg-6 col-xl-4">
+                <div class="card card-login">
+                    <div class="card-body p-4">
+                        
+                        <div class="text-center w-75 m-auto mb-4">
+                            <h2 class="text-dark text-center mt-0 fw-bold">SEOSuite</h2>
+                            <p class="text-muted mb-4">Ingresa tus credenciales para acceder al OS.</p>
+                        </div>
+
+                        <form action="{% url 'login' %}" method="POST">
+                            {% csrf_token %}
+
+                            {% if form.errors %}
+                                <div class="alert alert-danger" role="alert">
+                                    <i class="mdi mdi-block-helper me-2"></i> Usuario o contraseña incorrectos.
+                                </div>
+                            {% endif %}
+
+                            <div class="mb-3">
+                                <label for="id_username" class="form-label">Usuario</label>
+                                <input class="form-control" type="text" id="id_username" name="username" required="" placeholder="Ingresa tu usuario" autofocus>
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="id_password" class="form-label">Contraseña</label>
+                                <div class="input-group input-group-merge">
+                                    <input type="password" id="id_password" name="password" class="form-control" placeholder="Ingresa tu contraseña">
+                                    <div class="input-group-text" data-password="false">
+                                        <span class="password-eye"></span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="mb-3">
+                                <div class="form-check">
+                                    <input type="checkbox" class="form-check-input" id="checkbox-signin" checked>
+                                    <label class="form-check-label" for="checkbox-signin">Recordarme</label>
+                                </div>
+                            </div>
+
+                            <div class="text-center d-grid">
+                                <button class="btn btn-primary" type="submit"> Iniciar Sesión </button>
+                            </div>
+
+                        </form>
+
+                        <div class="text-center mt-3">
+                            <p class="text-muted"><small>¿Olvidaste tu contraseña? Contacta al Admin.</small></p>
+                        </div>
+
+                    </div> </div> </div> </div> </div> <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

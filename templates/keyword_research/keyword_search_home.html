@@ -1,154 +1,170 @@
 {% extends "base.html" %}
 {% load static %}
+{% load django_tomselect %}
+
+{% block extra_css %}
+ 
+{% endblock %}
+
+{% block breadcrumb %}
+
+    <div class="flex flex-wrap items-center justify-between gap-2 mb-6">
+        <h6 class="font-semibold mb-0 dark:text-white">Magic Tool</h6>
+        <ul class="flex items-center gap-[6px]">
+            <li class="font-medium">
+                <a href="/" class="flex items-center gap-2 hover:text-primary-600 dark:text-white">
+                    <iconify-icon icon="solar:home-smile-angle-outline" class="icon text-lg"></iconify-icon>
+                    Dashboard
+                </a>
+            </li>
+            <li class="dark:text-white">-</li>
+            <li class="font-medium dark:text-white text-primary-600">Keyword Research</li>
+        </ul>
+    </div>    
+    
+{% endblock %}
 
 {% block content %}
-<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" />
 
-<style>
-    .search-card {
-        border-radius: 15px;
-        box-shadow: 0 10px 25px rgba(0,0,0,0.05);
-        border: none;
-    }
-    .input-group-lg .form-control {
-        border-radius: 8px 0 0 8px;
-    }
-    .input-group-lg .input-group-text {
-        border-radius: 8px 0 0 8px;
-    }
-    .financial-box {
-        background: #f8f9fa;
-        border-radius: 12px;
-        border-left: 5px solid #0ab39c; /* Color verde de éxito */
-    }
-    .select2-container--bootstrap-5 .select2-selection {
-        height: calc(3.5rem + 2px);
-        padding: 0.75rem 0.75rem;
-        font-size: 1rem;
-    }
-</style>
-
-<div class="page-content">
-    <div class="container-fluid">
-
-        <div class="row">
-            <div class="col-12">
-                <div class="page-title-box d-flex align-items-center justify-content-between">
-                    <h4 class="mb-0">Keyword Magic Tool</h4>
-                    <div class="page-title-right">
-                        <ol class="breadcrumb m-0">
-                            <li class="breadcrumb-item"><a href="javascript: void(0);">SEO Tools</a></li>
-                            <li class="breadcrumb-item active">Keyword Research</li>
-                        </ol>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="row justify-content-center mt-4">
-            <div class="col-xl-8">
-                <div class="card search-card">
-                    <div class="card-body p-5">
-                        <div class="text-center mb-4">
-                            <h3 class="fw-bold">Descubre nuevas oportunidades</h3>
-                            <p class="text-muted">Analiza palabras clave semilla para obtener volúmenes de búsqueda, CPC y dificultad real.</p>
-                        </div>
-
-                        <form method="POST" action="{% url 'keyword_research:magic_tool_home' %}" id="magic-search-form">
-                            {% csrf_token %}
-                            
-                            <input type="hidden" name="project" value="{{ project.id }}">
-
-                            <div class="mb-4">
-                                <label class="form-label fw-bold text-uppercase small">Palabra Clave Semilla</label>
-                                <div class="input-group input-group-lg">
-                                    <span class="input-group-text bg-light border-end-0"><i class="mdi mdi-magnify text-primary"></i></span>
-                                    <input type="text" name="seed" class="form-control border-start-0 shadow-none" 
-                                           placeholder="Ej: seguro de auto, comprar iphone..." required>
-                                </div>
-                            </div>
-
-                            <div class="row g-4 mb-4">
-                                <div class="col-md-6">
-                                    <label class="form-label fw-bold text-uppercase small">País / Ubicación</label>
-                                    <select name="location_id" id="location_select" class="form-select">
-                                        <option value="2840" selected>United States (Country)</option>
-                                        <option value="2724">Spain (Country)</option>
-                                        <option value="2484">Mexico (Country)</option>
-                                        <option value="2170">Colombia (Country)</option>
-                                    </select>
-                                </div>
-                                <div class="col-md-6">
-                                    <label class="form-label fw-bold text-uppercase small">Idioma</label>
-                                    <select name="language_id" id="language_select" class="form-select">
-                                        <option value="1003" selected>Spanish</option>
-                                        <option value="1000">English</option>
-                                    </select>
-                                </div>
-                            </div>
-
-                            <div class="financial-box p-3 mb-4">
-                                <div class="row align-items-center">
-                                    <div class="col-md-7 border-end">
-                                        <p class="mb-1 text-muted small fw-bold text-uppercase">Presupuesto del Proyecto: <span class="text-primary">{{ project.name }}</span></p>
-                                        <h4 class="mb-0 text-dark fw-bold">${{ project.authorized_monthly_budget|default:"0.00" }} <span class="badge bg-soft-success text-success fs-12 ms-2">Disponible</span></h4>
-                                    </div>
-                                    <div class="col-md-5 ps-4">
-                                        <label class="form-label small fw-bold text-uppercase text-muted mb-1">Modo de consulta</label>
-                                        <select name="search_mode" class="form-select form-select-sm border-0 bg-transparent fw-bold shadow-none p-0">
-                                            <option value="live">⚡ DataForSEO Labs (Live)</option>
-                                            <option value="database">📚 Database (Histórico)</option>
-                                        </select>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div class="d-grid">
-                                <button type="submit" id="btn-submit" class="btn btn-primary btn-lg fw-bold py-3 shadow">
-                                    <i class="mdi mdi-rocket-launch me-1"></i> INICIAR INVESTIGACIÓN PROFESIONAL
-                                </button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-            </div>
-        </div>
+<div class="card h-full p-0 rounded-xl border-0 overflow-hidden">
+    <div class="card-header border-b border-neutral-200 dark:border-neutral-600 bg-white dark:bg-neutral-700 py-4 px-6">
+        <iconify-icon icon="solar:magic-stick-3-bold-duotone" class="text-2xl"></iconify-icon>
+        <h5 class="text-lg font-bold text-neutral-800 dark:text-white mb-1">Descubre nuevas oportunidades</h5>
+        <p class="text-sm text-neutral-500 mb-0">
+            Investigación activa para: <span class="text-primary-600 font-bold">{{ project.name }}</span>
+        </p>
     </div>
+    
+    <div class="card-body p-6 flex flex-col gap-6">
+        <form method="POST" action="{% url 'keyword_research:magic_tool_home' %}" id="magic-search-form" class="space-y-10">
+            {% csrf_token %}
+            <input type="hidden" name="project" value="{{ project.id }}">
+
+            <div>
+                <label class="form-label text-[11px] font-black uppercase text-neutral-400 mb-3 block tracking-wider">Palabra Clave Semilla</label>
+                <div class="icon-field">
+                    <span class="icon text-primary-600"><iconify-icon icon="solar:magnifer-linear" class="text-xl"></iconify-icon></span>
+                    <input type="text" name="seed" class="form-control h-[56px] radius-12 border-neutral-200" 
+                            placeholder="Ej: seguros de auto, comprar bitcoin..." required>
+                </div>
+            </div>
+            <div class="grid grid-cols-1 xl:grid-cols-12 gap-6 mt-6">
+                <div class="col-span-12 xl:col-span-6 2xl:col-span-6">
+                    <div class="card px-2 py-5 shadow-2 rounded-lg border-gray-200 dark:border-neutral-600 h-full bg-gradient-to-l from-primary-600/10 to-bg-white">    
+                        <div class="form-group">
+                            <label class="form-label text-[11px] font-black uppercase text-neutral-400 mb-3 block">Ubicación Objetivo</label>
+                            <div class="icon-field">
+                                <span class="icon"><iconify-icon icon="solar:map-point-bold-duotone" class="text-xl text-neutral-400"></iconify-icon></span>
+                                <select name="location_id" id="location_select" class="form-control"></select>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-span-12 xl:col-span-6 2xl:col-span-6">
+                    <div class="card px-2 py-5 shadow-2 rounded-lg border-gray-200 dark:border-neutral-600 h-full bg-gradient-to-l from-primary-600/10 to-bg-white">    
+                        <div class="form-group">
+                            <label class="form-label text-[11px] font-black uppercase text-neutral-400 mb-3 block">Idioma de Rastreo</label>
+                            <div class="icon-field">
+                                <span class="icon"><iconify-icon icon="solar:chat-round-line-bold-duotone" class="text-xl text-neutral-400"></iconify-icon></span>
+                                <select name="language_id" id="language_select" class="form-control"></select>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="grid grid-cols-1 xl:grid-cols-12 gap-3 mt-3">
+                <div class="col-span-12 xl:col-span-4 2xl:col-span-6">
+                    <div class="card shadow-none border-gray-200 dark:border-neutral-600 bg-gradient-to-l from-warning-600/10 to-bg-white">
+                        <div class="card-body p-5">
+                            <div class="flex flex-wrap items-center gap-3">  
+                                <iconify-icon icon="solar:wallet-money-bold-duotone" class="w-10 h-10 rounded-full shrink-0"></iconify-icon>
+                                <div class="grow">
+                                    <h6 class="text-sm mb-1">Presupuesto Dominio</h6>
+                                    <h6 class="mb-2 dark:text-white">${{ project.authorized_monthly_budget|default:"0.00" }}</h6>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-span-12 xl:col-span-4 2xl:col-span-6">
+                    <div class="card shadow-none border-gray-200 dark:border-neutral-600 bg-gradient-to-l from-primary-600/10 to-bg-white">
+                        <div class="card-body p-5">
+                            <div class="flex flex-wrap items-center gap-3">  
+                                <iconify-icon icon="solar:wallet-money-bold-duotone" class="w-10 h-10 rounded-full shrink-0"></iconify-icon>
+                                <div class="grow">
+                                    <h6 class="text-sm mb-1">Modo de Consulta</h6>
+                                    <select name="search_mode" class="form-select border-0 bg-transparent p-0 font-bold text-sm focus:ring-0 cursor-pointer w-full text-neutral-700">
+                                        <option value="live">⚡ Google Ads (Live)</option>
+                                        <option value="database">📚 Histórico (Local)</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>               
+                <div class"row">
+                    <button type="submit" id="btn-submit" class="btn btn-primary-600 w-full py-4 radius-12 flex items-center justify-center gap-3 font-black text-lg shadow-lg transform transition-all hover:scale-[1.01] active:scale-95">
+                        <iconify-icon icon="solar:rocket-bold-duotone" class="text-2xl"></iconify-icon>
+                        INICIAR INVESTIGACIÓN PROFESIONAL
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
+    <div class="bg-neutral-50 dark:bg-neutral-900/40 p-4 text-center border-t border-neutral-100 radius-b-xl">
+        <p class="text-[10px] text-neutral-400 mb-0 font-medium">
+            <iconify-icon icon="solar:info-circle-bold" class="align-middle mr-1"></iconify-icon>
+            La consulta "Live" utiliza créditos directos de la API vinculada.
+        </p>
+    </div>
+    
 </div>
+{% endblock %}
 
-<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
-
+{% block extra_js %}
 <script>
-$(document).ready(function() {
-    // 1. Inicializar Select2 con el tema Bootstrap 5
-    $('#location_select, #language_select').select2({
-        theme: 'bootstrap-5',
-        width: '100%'
-    });
+    document.addEventListener("DOMContentLoaded", function() {
+        const config = {
+            valueField: 'criteria_id', // Asegúrate que coincida con value_fields de la vista
+            labelField: 'canonical_name',
+            searchField: 'canonical_name',
+            load: function(query, callback) {
+                if (!query.length) return callback();
+                const url = `/keyword-research/api/locations-search/?q=${encodeURIComponent(query)}`;
+                
+                console.log("🔍 Buscando en:", url); // Diagnóstico
+                
+                fetch(url)
+                    .then(response => {
+                        if (!response.ok) throw new Error("Error en la red: " + response.status);
+                        return response.json();
+                    })
+                    .then(json => {
+                        console.log("✅ Datos recibidos:", json.results);
+                        callback(json.results);
+                    })
+                    .catch(err => {
+                        console.error("❌ Error en TomSelect:", err);
+                        callback();
+                    });
+            }
+        };
 
-    // 2. Autocomplete de Ubicación vía AJAX (Opcional, pero recomendado)
-    $('#location_select').select2({
-        theme: 'bootstrap-5',
-        ajax: {
-            url: "{% url 'keyword_research:location_search' %}",
-            dataType: 'json',
-            delay: 300,
-            data: params => ({ q: params.term }),
-            processResults: data => ({ results: data.results })
-        },
-        minimumInputLength: 2,
-        placeholder: "🔍 Busca país o ciudad..."
+        new TomSelect("#location_select", config);
+        
+        // Lo mismo para idiomas cambiando los campos
+        new TomSelect("#language_select", {
+            ...config,
+            labelField: 'name',
+            searchField: 'name',
+            placeholder: "🔍 Selecciona idioma...",
+            load: function(query, callback) {
+                fetch(`/keyword-research/api/languages-search/?q=${encodeURIComponent(query)}`)
+                    .then(res => res.json())
+                    .then(json => callback(json.results))
+                    .catch(() => callback());
+            }
+        });
     });
-
-    // 3. Manejo de estado del botón al enviar
-    $('#magic-search-form').on('submit', function() {
-        const $btn = $('#btn-submit');
-        $btn.prop('disabled', true);
-        $btn.html('<span class="spinner-border spinner-border-sm me-2"></span> PROCESANDO DATOS DE API...');
-        // El formulario se enviará de forma natural
-    });
-});
 </script>
 {% endblock %}

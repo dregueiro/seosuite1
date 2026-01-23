@@ -1,96 +1,146 @@
 from django.views.generic import ListView, DetailView, CreateView, UpdateView, DeleteView, RedirectView
+from django.views import View
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.urls import reverse_lazy, reverse
-from django.shortcuts import get_object_or_404
+from django.shortcuts import get_object_or_404, redirect
 from django.contrib import messages
 from django.http import JsonResponse
 from django.conf import settings
 
 from .models import Project
 from .forms import ProjectForm, ProjectIntegrationForm
-from integrations.services.google_auth import GoogleAuthService
 from clients.models import Client
+
+from integrations.services.google_auth import GoogleAuthService
+from integrations.services.gsc_service import GscSyncService
 from keyword_research.services.google_ads_service import GoogleAdsService
 # --- LISTADOS ---
 
-class ProjectListView(LoginRequiredMixin, ListView):
-    """Muestra todos los proyectos del usuario logueado."""
-    model = Project
-    template_name = "projects/project_list.html"
-    context_object_name = "projects"
-    
-    def get_queryset(self):
-        return Project.objects.filter(client__user=self.request.user).order_by('name')
 
-class ProjectByClientListView(LoginRequiredMixin, ListView):
-    """Filtra proyectos por un cliente específico."""
+class GscSyncView(View):
+    def get(self, request, project_id):
+        project = get_object_or_404(Project, pk=project_id)
+        
+        try:
+            # Ejecutamos el servicio (Directiva Zero-Cost + Traceability)
+            rows = GscSyncService.sync_project(project, request.user)
+            messages.success(request, f"¡Éxito! Se han sincronizado {rows} keywords desde GSC.")
+        except Exception as e:
+            messages.error(request, f"Error en la sincronización: {str(e)}")
+            
+        # Volvemos a donde estábamos (Magic Tool)
+        return redirect(request.META.get('HTTP_REFERER', 'projects:list'))
+    
+class ProjectListView(LoginRequiredMixin, ListView):
     model = Project
     template_name = 'projects/project_list.html'
     context_object_name = 'projects'
+    paginate_by = 9
 
     def get_queryset(self):
-        return Project.objects.filter(
-            client_id=self.kwargs['client_id'], 
-            client__user=self.request.user
-        )
+        # 1. Filtro base por usuario (PEPE'S RULE)
+        qs = Project.objects.filter(client__user=self.request.user).select_related('client')
+        
+        # 2. Lógica de búsqueda
+        query = self.request.GET.get('search')
+        if query:
+            qs = qs.filter(
+                Q(name__icontains=query) | 
+                Q(domain__icontains=query)
+            )
+        return qs.order_by('-created_at')
+
+class ProjectByClientListView(ProjectListView):
+    def get_queryset(self):
+        # Filtro específico por cliente + búsqueda
+        qs = super().get_queryset().filter(client_id=self.kwargs['client_id'])
+        return qs
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context['current_client'] = get_object_or_404(Client, id=self.kwargs['client_id'], user=self.request.user)
+        context['current_client'] = get_object_or_404(
+            Client, id=self.kwargs['client_id'], user=self.request.user
+        )
         return context
 
 # --- CRUD PROYECTOS ---
-
+# --- CREATE VIEW ---
 class ProjectCreateView(LoginRequiredMixin, CreateView):
     model = Project
     form_class = ProjectForm
-    template_name = 'projects/project_form.html'
     success_url = reverse_lazy('projects:list')
-
-class ProjectUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
-    model = Project
-    form_class = ProjectForm
-    template_name = 'projects/project_form.html'
-    success_url = reverse_lazy('projects:list')
-
-    def test_func(self):
+    # PEPE: CORRECCIÓN - Nombres exactos según tu models.py
+    
+    def get_initial(self):
         """
-        Regla de seguridad: El usuario actual debe ser el dueño del cliente 
-        al que pertenece este proyecto.
+        Pre-llena el formulario si venimos de la URL ?client=UUID
         """
-        project = self.get_object()
-        return project.client.user == self.request.user
+        initial = super().get_initial()
+        client_id = self.request.GET.get('client')
+        if client_id:
+            initial['client'] = client_id
+        return initial
+    
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs["user"] = self.request.user  # esto conecta con __init__(user=...) de tu form
+        return kwargs
+
     def get_form(self, form_class=None):
         form = super().get_form(form_class)
-        from django_countries import countries
-        from django.conf import settings
-
         
-
-        # 1. ORDENAR PAÍSES: Convertimos a lista y ordenamos por el nombre del país (índice 1)
-        sorted_countries = sorted(list(countries), key=lambda x: str(x[1]))
-          # 2. ORDENAR IDIOMAS: Ordenamos por el nombre del idioma (índice 1)
-        sorted_languages = sorted(list(settings.LANGUAGES), key=lambda x: str(x[1]))
-        # --- CORRECCIÓN CLAVE PARA MOSTRAR DATO GUARDADO ---
-        # No redefinimos el widget, solo actualizamos sus opciones y clases
-        # Campo País
-        form.fields['target_country_code'].widget.choices = sorted_countries
-        form.fields['target_country_code'].widget.attrs.update({'class': 'form-select'})
-
-        # Campo Idioma
-        form.fields['language_code'].widget.choices = sorted_languages
-        form.fields['language_code'].widget.attrs.update({'class': 'form-select'})
-
         if 'google_credential' in form.fields:
-            form.fields['google_credential'].widget.attrs.update({
-                'class': 'form-select select2',
-                'data-placeholder': 'Selecciona una Service Account'
-            })
+             # INTENTO DE FILTRADO (Ajustar según donde esté tu modelo GoogleCredential)
+             # form.fields['google_credential'].queryset = GoogleCredential.objects.filter(client__user=self.request.user)
+             pass
+        # UX: Mejoramos los widgets (Opcional, pero se ve mejor)
+        form.fields['domain'].widget.attrs.update({'placeholder': 'https://ejemplo.com'})
+        form.fields['gsc_property_url'].widget.attrs.update({'placeholder': 'https://ejemplo.com/'})
+        form.fields['google_ads_customer_id'].widget.attrs.update({'placeholder': '123-456-7890'})
+        form.fields['ga4_property_id'].widget.attrs.update({'placeholder': '987654321'})
+        # Si quieres que el campo cliente aparezca oculto visualmente pero funcional:
+        # if self.request.GET.get('client'):
+        #     # Ocultamos el input pero mantenemos el valor
+        #     pass 
+
         return form
 
+    def form_valid(self, form):
+        # Validación final de seguridad (Double Check)
+        project = form.save(commit=False)
+        # Aseguramos que el cliente asignado sea realmente del usuario
+        if project.client.user != self.request.user:
+            form.add_error('client', "Violación de seguridad: Cliente ajeno.")
+            return self.form_invalid(form)
+        return super().form_valid(form)
+
+
+class ProjectUpdateView(LoginRequiredMixin, UpdateView):
+    model = Project
+    form_class = ProjectForm # <--- USAMOS EL FORMULARIO INTELIGENTE
+    template_name = "projects/project_form.html"
+    success_url = reverse_lazy('projects:list')
+
+    def get_form_kwargs(self):
+        """
+        Pasamos el usuario al formulario para que pueda filtrar
+        la lista de clientes (Isolation).
+        """
+        kwargs = super().get_form_kwargs()
+        kwargs['user'] = self.request.user
+        return kwargs
+
+    def form_valid(self, form):
+        # Validación extra de seguridad
+        # Aseguramos que no cambien el proyecto a un cliente de otro usuario
+        project = form.save(commit=False)
+        if project.client.user != self.request.user:
+            form.add_error('client', "Seguridad: Cliente no válido.")
+            return self.form_invalid(form)
+        return super().form_valid(form)
 class ProjectDeleteView(LoginRequiredMixin, UserPassesTestMixin, DeleteView):
     model = Project
-    template_name = 'projects/project_confirm_delete.html'
+    template_name = 'confirm_delete.html'
     success_url = reverse_lazy('projects:list')
 
     def test_func(self):
@@ -130,7 +180,7 @@ class ActivateProjectView(LoginRequiredMixin, RedirectView):
         messages.info(self.request, f"Proyecto activo: {project.name}")
 
         # 3. Construimos la URL de destino manualmente pasándole el PK
-        return reverse('keyword_research:magic_tool', kwargs={'pk': project.id})
+        return reverse('keyword_research:magic_tool_home')
 
 # --- ENDPOINTS AJAX PARA TESTS ---
 

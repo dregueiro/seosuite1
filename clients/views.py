@@ -3,7 +3,7 @@ from django.views.generic import ListView, CreateView, UpdateView, DeleteView
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from .models import Client
 
-class ClientCreateView(CreateView):
+class ClientCreateView(LoginRequiredMixin,CreateView):
     model = Client
     # Solo pedimos los datos que el usuario debe rellenar
     fields = ['name', 'contact_name', 'phone', 'email']
@@ -15,14 +15,21 @@ class ClientCreateView(CreateView):
         form.instance.user = self.request.user
         return super().form_valid(form)
 
-class ClientListView(ListView):
+class ClientListView(LoginRequiredMixin, ListView):
     model = Client
     template_name = 'clients/client_list.html'
     context_object_name = 'clients'
+    paginate_by = 10  # Control de carga inicial
 
     def get_queryset(self):
         # IMPORTANTE: El usuario solo ve sus propios clientes
-        return Client.objects.filter(user=self.request.user)
+
+        base_qs = Client.objects.select_related('user').order_by('-name')
+        
+        if self.request.user.is_superuser:
+            return base_qs
+            
+        return base_qs.filter(user=self.request.user)
 class ClientUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
     model = Client
     # Usamos los mismos campos que en Create para mantener la consistencia

@@ -1,41 +1,38 @@
+# core/context_processors.py
+from django.core.exceptions import ValidationError
 from projects.models import Project
 
 def active_project(request):
-    """
-    Inyecta el proyecto activo en todas las plantillas.
-    """
-    project_id = None
-    
-    # 1. Intentar obtener de la URL
-    resolved = request.resolver_match
-    if resolved and resolved.kwargs.get('pk'):
-        # Verificamos si estamos en una app que usa Project ID en la URL
-        # OJO: En keyword_research/magic/, el pk es un RUN, no un PROYECTO.
-        # Pero para arreglar el error 500, lo primero es convertirlo a string.
-        if resolved.app_name in ['seo', 'projects']:
-            
-            # 🔴 FIX CRÍTICO: Convertir a STRING inmediatamente
-            raw_pk = resolved.kwargs['pk']
-            project_id = str(raw_pk) 
-            
-            # Guardamos en sesión SOLO si es un string válido
-            request.session['active_project_id'] = project_id
-            request.session.modified = True
+    if not request.user.is_authenticated:
+        return {'active_project': None, 'budget_alert': False, 'all_projects_list': []}
 
-    # 2. Fallback: Obtener de la sesión (Si la URL no tenía ID)
-    if not project_id:
-        project_id = request.session.get('active_project_id')
-        
-    sidebar_project = None
+    active_proj = None
+    project_id = request.session.get('active_project_id')
+
+    # Búsqueda segura con select_related para evitar N+1
     if project_id:
         try:
-            # Buscamos el proyecto (Django maneja el string UUID en la consulta automáticamente)
-            sidebar_project = Project.objects.filter(pk=project_id).first()
-        except Exception:
-            sidebar_project = None
-            
+            active_proj = Project.objects.filter(
+                pk=project_id, 
+                client__user=request.user
+            ).select_related('client').first()
+        except (ValueError, ValidationError, TypeError):
+            active_proj = None
+
+    # Fallback: si no hay selección, traer el primero
+    if not active_proj:
+        active_proj = Project.objects.filter(client__user=request.user).select_related('client').first()
+
+    # BLOQUE DE SEGURIDAD TOTO: Solo calculamos si active_proj EXISTE
+    budget_alert = False
+    if active_proj and active_proj.client:
+        limit = getattr(active_proj.client, 'authorized_monthly_budget', 0)
+        spend = getattr(active_proj.client, 'current_month_spend', 0)
+        if limit > 0:
+            budget_alert = spend >= limit
+
     return {
-        'sidebar_project': sidebar_project,
-        # Optimizamos la consulta de la lista también
-        'all_projects_list': Project.objects.only('id', 'name', 'domain').all()[:15]
+        'active_project': active_proj,
+        'budget_alert': budget_alert,
+        'all_projects_list': Project.objects.filter(client__user=request.user)[:15]
     }

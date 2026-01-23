@@ -146,3 +146,55 @@ class GoogleAuthService:
             run.raw_json = {'error': str(e)}
             run.save()
             return False, f"Error GA4: {str(e)}"
+        
+    @classmethod
+    def force_indexing_url(cls, project, url):
+        """
+        Dispara el rayo de indexación forzada vía Google Indexing API.
+        Regla 2: Trazabilidad total mediante el modelo Run.
+        Costo: $0 (Sujeto a cuotas de Google).
+        """
+        # 1. Iniciamos el registro de trazabilidad
+        run = cls._create_run(
+            project=project, 
+            provider='GOOGLE_GSC', 
+            kind='force_indexing', 
+            inputs={'url': url}
+        )
+
+        try:
+            # 2. Configuración de Credenciales y Scope
+            # OJO: Se requiere el scope específico de indexing
+            scopes = ['https://www.googleapis.com/auth/indexing']
+            creds = cls.get_credentials(project.google_credential, scopes)
+            
+            # 3. Construcción del cliente de API
+            # Requiere 'google-api-python-client' instalado
+            service = build('indexing', 'v3', credentials=creds)
+            
+            # 4. Preparación del Payload
+            # Google espera la URL y el tipo de notificación (URL_UPDATED o URL_DELETED)
+            body = {
+                'url': url,
+                'type': 'URL_UPDATED'
+            }
+            
+            # 5. Ejecución del Rayo
+            response = service.urlNotifications().publish(body=body).execute()
+            
+            # 6. Éxito: Guardamos respuesta y cerramos RUN
+            run.status = 'SUCCESS'
+            run.raw_json = response
+            run.save()
+            
+            return True, "URL enviada a Google correctamente."
+
+        except Exception as e:
+            # 7. Fallo: Registramos el error real para auditoría
+            run.status = 'ERROR'
+            run.raw_json = {'error': str(e)}
+            run.save()
+            
+            # Pepe dice: Error 403 suele ser falta de permisos en Search Console.
+            # Error 404 suele ser que la propiedad en GSC no coincide con el dominio.
+            return False, f"Fallo en GSC Indexing: {str(e)}"

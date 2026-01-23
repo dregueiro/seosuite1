@@ -12,7 +12,7 @@
                             <button type="submit" class="btn btn-success">
                                 <i data-feather="refresh-cw" class="icon-xs me-1"></i> Escanear Sitemap
                             </button>
-                            <a href="{% url 'seo:bulk_inspect' project.pk %}" 
+                            <a href="#" 
                                 onclick="iniciarInspeccionMasiva(event, this.href)"
                                 class="btn btn-primary shadow-sm">
                                 <i data-feather="zoom-in" class="icon-xs me-1"></i> Inspección Masiva (API)
@@ -61,11 +61,11 @@
                                     <small class="text-muted">{{ audit.status|default:"Pendiente de inspección" }}</small>
                                 </td>
                                 <td>
-                                    <a href="{% url 'seo:inspect_url' project.pk audit.id %}" class="btn btn-sm btn-light">
+                                    <a href="{% url 'serp:inspect_url' project_pk=project.pk pk=audit.id %}" class="btn btn-sm btn-light">
                                         <i data-feather="search" class="icon-xs"></i>
                                     </a>
                                     {% if audit.status != 'Submitted and indexed' %}
-                                        <a href="{% url 'seo:request_indexing' project.pk audit.id %}" 
+                                        <a href="{% url 'serp:request_indexing' pk=project.pk audit_id=audit.id %}" 
                                         class="btn btn-sm btn-soft-warning" 
                                         title="Forzar Indexación">
                                             <i data-feather="zap" class="icon-xs text-warning"></i>

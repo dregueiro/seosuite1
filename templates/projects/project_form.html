@@ -1,105 +1,294 @@
 {% extends "base.html" %}
 {% load static %}
+{% load django_tomselect %}
+{% block extra_css %}
+ 
+{% endblock %}
+{% block breadcrumb %}
+<div class="flex flex-wrap items-center justify-between gap-2 mb-6">
+    <h6 class="font-semibold mb-0 dark:text-white">
+        {% if object %}Editar Proyecto: {{ object.name }}{% else %}Registro de Nuevo Dominio{% endif %}
+    </h6>
+    <ul class="flex items-center gap-[6px]">
+        <li class="font-medium">
+            <a href="{% url 'projects:list' %}" class="flex items-center gap-2 hover:text-primary-600 dark:text-white">
+                <iconify-icon icon="solar:globus-outline" class="icon text-lg"></iconify-icon>
+                Proyectos
+            </a>
+        </li>
+        <li class="dark:text-white">-</li>
+        <li class="font-medium dark:text-white">Formulario</li>
+    </ul>
+</div>
+{% endblock %}
 
 {% block content %}
-<div class="container-fluid">
-    <div class="row">
-        <div class="col-12">
-            <div class="page-title-box">
-                <h4 class="page-title">Configuración de Proyecto: {{ object.name|default:"Nuevo" }}</h4>
+<div class="grid grid-cols-12 gap-6">
+    
+    <div class="col-span-12 lg:col-span-8">
+        <div class="card border-0 shadow-sm radius-12">
+            <div class="card-header border-b border-neutral-200 dark:border-neutral-600 p-6">
+                <h5 class="text-lg font-semibold mb-0 text-secondary-light">Ficha de Configuración SEO</h5>
+            </div>
+            <div class="card-body p-6">
+                <form method="POST" class="grid grid-cols-12 gap-4 needs-validation" novalidate>
+                    {% csrf_token %}
+
+                    {% if request.GET.client or object.client %}
+                        <input type="hidden" name="client" value="{% if object %}{{ object.client.id }}{% else %}{{ request.GET.client }}{% endif %}">
+                    {% else %}
+                        <div class="col-span-12 mb-2">
+                            <label class="form-label font-bold text-primary-600">Asignar a Cliente / Billetera *</label>
+                            <select name="{{ form.client.html_name }}" id="{{ form.client.id_for_label }}" class="form-control form-select" required>
+                                {% for choice in form.client.field.choices %}
+                                    <option value="{{ choice.0 }}" {% if form.client.value|stringformat:"s" == choice.0|stringformat:"s" %}selected{% endif %}>{{ choice.1 }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    {% endif %}
+
+                    <div class="col-span-12 mt-4"><h6 class="text-xs font-bold uppercase text-neutral-400 tracking-widest">1. Identificación del Sitio</h6></div>
+                    
+                    <div class="md:col-span-6 col-span-12">
+                        <label class="form-label">Nombre del Proyecto</label>
+                        <div class="icon-field has-validation">
+                            <span class="icon"><iconify-icon icon="solar:pen-new-square-linear"></iconify-icon></span>
+                            <input type="text" name="{{ form.name.html_name }}" id="{{ form.name.id_for_label }}" 
+                                class="form-control" placeholder="Ej: Mi E-commerce" 
+                                value="{{ form.name.value|default_if_none:"" }}" required>
+                        </div>
+                    </div>
+
+                    <div class="md:col-span-6 col-span-12">
+                        <label class="form-label">Dominio / URL Principal</label>
+                        <div class="icon-field has-validation">
+                            <span class="icon"><iconify-icon icon="solar:globus-linear"></iconify-icon></span>
+                            <input type="text" name="{{ form.domain.html_name }}" id="{{ form.domain.id_for_label }}" 
+                                class="form-control" placeholder="midominio.com" 
+                                value="{{ form.domain.value|default_if_none:"" }}" required>
+                        </div>
+                    </div>
+
+                    <div class="col-span-12 border-t border-neutral-100 pt-6 mt-2">
+                        <h6 class="text-xs font-bold uppercase text-neutral-400 tracking-widest">2. Geo-Engine (Ubicación de Rastreo)</h6>
+                    </div>
+
+                    <div class="md:col-span-6 col-span-12">
+                        <label class="form-label">Ubicación Objetivo</label>
+                        <div class="icon-field">
+                            <span class="icon"><iconify-icon icon="solar:map-point-wave-linear" class="text-xl"></iconify-icon></span>
+                            {{ form.location_selector }}
+                        </div>
+                    </div>
+
+                    <div class="md:col-span-6 col-span-12">
+                        <label class="form-label">Idioma de Búsqueda</label>
+                        <div class="icon-field">
+                            <span class="icon"><iconify-icon icon="solar:chat-round-line-linear" class="text-xl"></iconify-icon></span>
+                            {{ form.language_selector }}
+                        </div>
+                    </div>
+
+                    <div class="col-span-12 border-t border-neutral-100 pt-6 mt-2"><h6 class="text-xs font-bold uppercase text-neutral-400 tracking-widest">3. Integraciones de Datos</h6></div>
+
+                    <div class="col-span-12">
+                        <label class="form-label text-xs font-bold">Google Credential (Service Account JSON)</label>
+                        <div class="flex gap-2">
+                            <div class="grow">
+                                <select name="{{ form.google_credential.html_name }}" id="{{ form.google_credential.id_for_label }}" class="form-control form-select">
+                                    {% for choice in form.google_credential.field.choices %}
+                                        <option value="{{ choice.0 }}" {% if form.google_credential.value|stringformat:"s" == choice.0|stringformat:"s" %}selected{% endif %}>{{ choice.1 }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <a href="{% url 'integrations:credential_add' %}" target="_blank" class="btn btn-outline-neutral-400 flex items-center gap-1 px-4 hover:bg-neutral-100">
+                                <iconify-icon icon="solar:add-circle-linear" class="text-xl"></iconify-icon> Gestionar
+                            </a>
+                        </div>
+                    </div>
+
+                    <div class="md:col-span-4 col-span-12">
+                        <label class="form-label text-[10px] uppercase font-bold text-neutral-400">Search Console URL</label>
+                        <input type="text" name="{{ form.gsc_property_url.html_name }}" class="form-control text-sm" value="{{ form.gsc_property_url.value|default_if_none:"" }}">
+                    </div>
+
+                    <div class="md:col-span-4 col-span-12">
+                        <label class="form-label text-[10px] uppercase font-bold text-neutral-400">GA4 Property ID</label>
+                        <input type="text" name="{{ form.ga4_property_id.html_name }}" class="form-control text-sm" value="{{ form.ga4_property_id.value|default_if_none:"" }}">
+                    </div>
+
+                    <div class="md:col-span-4 col-span-12">
+                        <label class="form-label text-[10px] uppercase font-bold text-neutral-400">Ads Customer ID</label>
+                        <input type="text" name="{{ form.google_ads_customer_id.html_name }}" class="form-control text-sm" value="{{ form.google_ads_customer_id.value|default_if_none:"" }}">
+                    </div>
+
+                    <div class="col-span-12 mt-6">
+                        <div class="bg-neutral-50 dark:bg-neutral-700 p-6 rounded-xl border border-neutral-200 shadow-sm">
+                            <div class="grid grid-cols-12 gap-6 items-center">
+                                <div class="md:col-span-6 col-span-12 border-e border-neutral-200 pr-6">
+                                    <label class="form-label font-bold text-primary-600 italic mb-2 block">4. Límite de Gasto Dominio</label>
+                                    <div class="flex">
+                                        <span class="inline-flex items-center px-3 border rounded-e-0 border-e-0 rounded-s-md border-neutral-200 bg-white text-primary-600 font-bold">$</span>
+                                        <input type="number" step="0.01" name="{{ form.authorized_monthly_budget.html_name }}" 
+                                            class="form-control grow rounded-ss-none rounded-es-none" 
+                                            value="{{ form.authorized_monthly_budget.value|stringformat:".2f"|default:"0.00" }}">
+                                    </div>
+                                </div>
+
+                                <div class="md:col-span-6 col-span-12 pl-4">
+                                    <label class="form-label font-bold text-secondary-light mb-2 block">Estado Operativo</label>
+                                    <label class="inline-flex items-center cursor-pointer">
+                                        <input type="checkbox" name="status" value="active" class="sr-only peer" {% if object.status == 'active' or not object %}checked{% endif %}>
+                                        <span class="relative w-11 h-6 bg-gray-400 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-600"></span>
+                                        <span class="ms-3 font-medium peer-checked:text-primary-600 text-gray-600 text-sm">En Producción</span>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-span-12 flex items-center justify-end gap-3 mt-8 border-t pt-6">
+                        <a href="{% url 'projects:list' %}" class="btn btn-outline-neutral-600 px-8 py-3 radius-8">Cancelar</a>
+                        <button class="btn btn-primary-600 px-8 py-3 radius-8 flex items-center gap-2" type="submit">
+                            <iconify-icon icon="solar:diskette-bold-duotone" class="text-xl"></iconify-icon>
+                            {% if object %}Actualizar Datos{% else %}Crear Proyecto{% endif %}
+                        </button>
+                    </div>
+                </form>
             </div>
         </div>
     </div>
 
-    <div class="row justify-content-center">
-        <div class="col-lg-11">
-            <div class="card">
-                <div class="card-body">
-                    <form method="POST">
-                        {% csrf_token %}
-
-                        <h5 class="mb-3 text-uppercase bg-light p-2"><i class="fe-info me-1"></i> Identification</h5>
-                        <div class="row">
-                            <div class="col-md-6 mb-3">
-                                <label class="form-label">Nombre del Proyecto</label>
-                                <input type="text" name="name" class="form-control" value="{{ form.name.value|default:'' }}" placeholder="Ej: EPIC Moments">
-                            </div>
-                            <div class="col-md-6 mb-3">
-                                <label class="form-label">Dominio (URL)</label>
-                                <input type="text" name="domain" class="form-control" value="{{ form.domain.value|default:'' }}" placeholder="http://epicmoments.media">
-                            </div>
-                        </div>
-
-                        <hr class="my-4">
-
-                        <h5 class="mb-3 text-uppercase bg-light p-2"><i class="fe-google me-1"></i> Detalles de Google (Identidades)</h5>
-                        
-                        <div class="row mb-3">
-                            <div class="col-md-4">
-                                <label class="form-label">G. Search Console (URL)</label>
-                                <input type="text" name="gsc_property_url" class="form-control" value="{{ form.gsc_property_url.value|default:'' }}" placeholder="https://...">
-                            </div>
-                            <div class="col-md-4">
-                                <label class="form-label">Google Ads ID</label>
-                                <input type="text" name="google_ads_customer_id" class="form-control" value="{{ form.google_ads_customer_id.value|default:'' }}" placeholder="511-099-9249">
-                            </div>
-                            <div class="col-md-4">
-                                <label class="form-label">Google Analytics ID</label>
-                                <input type="text" name="ga4_property_id" class="form-control" value="{{ form.ga4_property_id.value|default:'' }}" placeholder="517901959">
-                            </div>
-                        </div>
-
-                        <div class="row mb-3 align-items-end">
-                            <div class="col-md-10">
-                                <label class="form-label">Google Credential</label>
-                                {{ form.google_credential }}
-                                <small class="text-muted">Service Account para GSC, GA4 y Ads.</small>
-                            </div>
-                            <div class="col-md-2">
-                                <a href="#" class="btn btn-outline-primary w-100 waves-effect waves-light">
-                                    <i class="fe-settings me-1"></i> Config
-                                </a>
-                            </div>
-                        </div>
-
-                        <hr class="my-4">
-
-                        <h5 class="mb-3 text-uppercase bg-light p-2"><i class="fe-target me-1"></i> Localización & Idioma</h5>
-                        <div class="row">
-                            <div class="col-md-6 mb-3">
-                                <label class="form-label">Idioma</label>
-                                {{ form.target_country_code }} 
-                                <small class="text-muted">Idioma principal para el tracking de Keywords.</small>
-                            </div>
-
-                            <div class="col-md-6 mb-3">
-                                <label class="form-label">Idioma</label>
-                                {{ form.language_code }} 
-                                <small class="text-muted">Region de busqueda (google Serach Region)</small>
-                            </div>                        
-
-                        <div class="row mb-4">
-                            <div class="col-md-4">
-                                <label class="form-label">Presupuesto Mensual Autorizado</label>
-                                <div class="input-group">
-                                    <span class="input-group-text">$</span>
-                                    <input type="number" name="authorized_monthly_budget" class="form-control" value="{{ form.authorized_monthly_budget.value|default:'50.00' }}">
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="row mt-4">
-                            <div class="col-12 text-end">
-                                <button type="submit" class="btn btn-primary waves-effect waves-light px-4">
-                                    <i class="fe-save me-1"></i> Guardar Cambios
-                                </button>
-                                <a href="{% url 'projects:list' %}" class="btn btn-light waves-effect ms-2">Cancelar</a>
-                            </div>
-                        </div>
-                    </form>
+    <div class="col-span-12 lg:col-span-4">
+    <div class="card border-0 shadow-sm radius-12 sticky top-24">
+        <div class="card-header border-b border-neutral-200 p-6 bg-neutral-50 radius-t-12">
+            <h6 class="text-base font-bold mb-0 flex items-center gap-2">
+                <iconify-icon icon="solar:shield-check-bold-duotone" class="text-primary-600 text-xl"></iconify-icon>
+                Validación de Accesos
+            </h6>
+        </div>
+        <div class="card-body p-6">
+            <div class="space-y-6">
+                <div class="flex items-center justify-between border-b pb-4" id="row-gsc">
+                    <div class="flex items-center gap-3">
+                        <iconify-icon icon="logos:google-search-console" class="text-2xl"></iconify-icon>
+                        <span class="text-sm font-bold">Search Console</span>
+                    </div>
+                    <span class="connection-indicator {% if object.gsc_verified %}status-connected{% else %}status-disconnected{% endif %}" id="status-gsc">
+                        {% if object.gsc_verified %}Conectado{% else %}Offline{% endif %}
+                    </span>
                 </div>
+
+                <div class="flex items-center justify-between border-b pb-4" id="row-ga4">
+                    <div class="flex items-center gap-3">
+                        <iconify-icon icon="logos:google-analytics" class="text-2xl"></iconify-icon>
+                        <span class="text-sm font-bold">Analytics GA4</span>
+                    </div>
+                    <span class="connection-indicator {% if object.ga4_verified %}status-connected{% else %}status-disconnected{% endif %}" id="status-ga4">
+                        {% if object.ga4_verified %}Conectado{% else %}Offline{% endif %}
+                    </span>
+                </div>
+
+                <div class="flex items-center justify-between border-b pb-4" id="row-ads">
+                    <div class="flex items-center gap-3">
+                        <iconify-icon icon="logos:google-ads" class="text-2xl"></iconify-icon>
+                        <span class="text-sm font-bold">Google Ads API</span>
+                    </div>
+                    <span class="connection-indicator {% if object.ads_verified %}status-connected{% else %}status-disconnected{% endif %}" id="status-ads">
+                        {% if object.ads_verified %}Conectado{% else %}Offline{% endif %}
+                    </span>
+                </div>
+
+                {% if object.pk %}
+                <button type="button" id="btn-test-all" onclick="runAllTests()" class="btn btn-primary-600 w-full py-3 flex items-center justify-center gap-2 shadow-lg shadow-primary-200">
+                    <iconify-icon icon="solar:play-bold-duotone" id="btn-icon" class="text-xl"></iconify-icon>
+                    <span>Testear Conexiones</span>
+                </button>
+                {% else %}
+                <div class="p-4 bg-yellow-50 border border-yellow-100 rounded-lg text-xs text-yellow-700">
+                    <iconify-icon icon="solar:info-circle-bold" class="align-middle"></iconify-icon>
+                    Guarda el proyecto primero para poder testear las APIs.
+                </div>
+                {% endif %}
+                
+                <div id="test-log" class="text-[12px] text-neutral-500 mt-2 hidden p-2 bg-neutral-100 rounded">
+                    </div>
             </div>
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+
+<script>
+    // 1. Mensaje de control para saber si el script cargó
+    console.log("🚀 Script de validación de conexiones cargado correctamente.");
+
+    // 2. Definimos la función de forma EXPLÍCITA en el objeto window
+    window.runAllTests = async function() {
+        console.log("Iniciando testAllConnections...");
+        
+        const projectId = "{{ object.pk|default:'' }}";
+        
+        if (!projectId || projectId === "" || projectId === "None") {
+            alert("⚠️ No se puede testear un proyecto nuevo. Guárdalo primero.");
+            return;
+        }
+
+        const btn = document.getElementById('btn-test-all');
+        const icon = document.getElementById('btn-icon');
+        const log = document.getElementById('test-log');
+
+        btn.disabled = true;
+        if (icon) icon.setAttribute('icon', "eos-icons:loading");
+        if (log) {
+            log.classList.remove('hidden');
+            log.innerHTML = "Iniciando validación de APIs...";
+        }
+
+        const services = [
+            { id: 'gsc', label: 'Search Console' },
+            { id: 'ga4', label: 'Analytics GA4' },
+            { id: 'ads', label: 'Google Ads' }
+        ];
+
+        for (const service of services) {
+            const statusEl = document.getElementById(`status-${service.id}`);
+            if (statusEl) statusEl.innerText = "⏳ Probando...";
+            
+            try {
+                // AQUÍ ES DONDE LLAMAMOS AL PATH DE TU URLS.PY
+                // Se traduce a: /projects/1/test-access/?type=gsc
+                const url = "{% url 'projects:test_access' object.pk|default:0 %}?type=" + service.id;
+                console.log("Llamando a:", url);
+
+                const response = await fetch(url);
+                const data = await response.json();
+
+                if (data.status === 'success') {
+                    if (statusEl) {
+                        statusEl.className = 'connection-indicator status-connected';
+                        statusEl.innerText = 'Conectado';
+                    }
+                } else {
+                    if (statusEl) {
+                        statusEl.className = 'connection-indicator status-disconnected';
+                        statusEl.innerText = 'Error';
+                    }
+                    if (log) log.innerHTML += `<br><span style="color:#ef4444">× ${service.label}:</span> ${data.message}`;
+                }
+            } catch (error) {
+                console.error("Error en fetch:", error);
+                if (statusEl) {
+                    statusEl.className = 'connection-indicator status-disconnected';
+                    statusEl.innerText = 'Fallo de Red';
+                }
+            }
+        }
+
+        btn.disabled = false;
+        if (icon) icon.setAttribute('icon', "solar:play-bold-duotone");
+    };
+</script>
 {% endblock %}
